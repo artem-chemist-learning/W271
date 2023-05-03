@@ -1,0 +1,7 @@
+```{r}
+library(dplyr)
+```
+
+```{r}
+db <- dbinom(x = 1, size = 5, prob = 0.6)
+```

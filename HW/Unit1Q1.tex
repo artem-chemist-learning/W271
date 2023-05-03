@@ -1,0 +1,41 @@
+
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{setspace}
+\usepackage{geometry}
+\geometry{legalpaper, portrait, margin=1in}
+\author{Artem Lebedev}
+\title{W271, Unit 1 Question 1}
+\date{\today}
+
+\begin{document}
+	
+	\maketitle
+
+	\begin{enumerate}
+		
+	\item {\large \textbf{Expectation of binomial distribution}}\\\\
+	We can think of binomially distributed random variable $X$ as a sum of outcomes of $n$ independent Bernoulli trials $x_{i}$.
+	
+	$\begin{aligned}
+		&X = \sum_{i = 1}^{n}x_{i}\\
+		&E[X] = E[\sum_{i = 1}^{n}x_{i}] = \sum_{i = 1}^{n}E[x_{i}]\text{, due to linearity of expectation}\\
+		&\text {note that $E[x] = \pi$ for all $i$, by definition and independence }\\
+		& E[X] = \sum_{i = 1}^{n}\pi = n\pi\\
+	\end{aligned}$
+	
+	\item {\large \textbf{Variance of binomially distributed random variable}}
+	
+	$\begin{aligned}
+		&V[x]=E[x^2]-E^2[x]\text{, almost definition}\\
+		&E^2[x] = \pi^2\\
+		&E[x^2] = 1^2*\pi + 0^2 *(1-\pi) = \pi \text{, therefore:}\\
+		&V[x]=\pi-\pi^2=\pi(1-\pi)\\
+		&\text {similarly to expectation of $X$, variance of $X$ is also a sum of variances of $x$}:\\
+		&V[X] = V\sum_{i = 1}^{n}[x_{i}] = \sum_{i = 1}^{n}V[x_{i}]\text{, therefore:}\\
+		&V[X] = nV[x] = n\pi(1-\pi)\\
+	\end{aligned}$
+		
+	\end{enumerate}
+	
+\end{document}

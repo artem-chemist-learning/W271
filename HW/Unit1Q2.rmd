@@ -1,0 +1,18 @@
+```{r Computing PMFs}
+pmf <- dbinom(x = 0:10, size = 5, prob = 0.2)
+pmf_df <- data.frame(w = 0:10, prob = round(x = pmf, digits = 4))
+pmf_df
+
+pmf2 <- dbinom(x = 0:10, size = 5, prob = 0.8)
+pmf2_df <- data.frame(w = 0:10, prob = round(x = pmf2, digits = 4))
+pmf2_df
+```
+
+```{r Plotting}
+library("ggplot2")
+ggplot(pmf_df, aes(w, prob)) + geom_col()
+```
+
+```{r Plotting2}
+ggplot(pmf2_df, aes(w, prob)) + geom_col()
+```
