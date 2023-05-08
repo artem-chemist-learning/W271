@@ -3,5 +3,24 @@ library(dplyr)
 ```
 
 ```{r}
-db <- dbinom(x = 1, size = 5, prob = 0.6)
+num_exp <- 12
+pmf <- dbinom(x = 0:num_exp, size = num_exp, prob = 0.6)
+df <- data.frame(w = 0:num_exp, prob = round(pmf, digits = 4))
+df
+```
+
+```{r}
+library("ggplot2")
+ggplot(data = df, aes(w, prob)) + geom_col()
+```
+
+```{r}
+nbin5 <- rbinom(n = 1000, size = 5, prob = 0.6)
+mean(nbin5)
+var(nbin5)
+```
+
+
+```{r}
+ggplot() + aes(nbin5) + geom_histogram(binwidth = 1, colour = "black", fill = "white")
 ```
