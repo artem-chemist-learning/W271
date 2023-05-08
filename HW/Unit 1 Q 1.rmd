@@ -1,2 +1,0 @@
-We can think of random variable `X` that has binomial distribution is a number of successes obseved in Bernoulli triales repeated n times. 
-X{sub }

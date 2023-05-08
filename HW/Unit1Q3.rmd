@@ -1,0 +1,32 @@
+---
+title: "W271, Unit 1 Question 3"
+author: "Artem Lebedev"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+# knitr::opts_chunk$set(echo = FALSE)
+pi_bar <- 251 / 338
+n1_inv <- 1/299
+n2_inv <- 1/285
+pi1_hat <- 251/299
+pi2_hat <- 251/285
+Z0 <- (pi1_hat - pi2_hat ) / sqrt( pi_bar * (1-pi_bar) * (n1_inv + n2_inv)  )
+
+```
+
+$\begin{cases}
+    H_{0}: \pi_{1} - \pi_{2} = 0\\
+    H_{1}: \pi_{1} - \pi_{2} \neq 0\\
+\end{cases}$
+
+We will use the following test statistic:
+
+$$Z_{0} = \frac{\hat{\pi}_{1}-\hat{\pi}_{2}}{\sqrt{\bar{\pi}(1-\bar{\pi})\left(\frac{1}{n_{1}}+\frac{1}{n_{2}}\right)}}$$
+using
+
+
+$\bar{\pi} = \frac{251}{338} = `r round(pi_bar, digits = 4)`$;    $\frac{1}{n_{1}} = \frac{1}{299} = `r round(n1_inv, digits = 5)`$;    $\frac{1}{n_{2}} = \frac{1}{285} = `r round(n2_inv, digits = 5)`$;    $\hat{\pi}_{1} = \frac{251}{299} = `r round(pi1_hat, digits = 4)`$;    $\hat{\pi}_{2} = \frac{251}{285} = `r round(pi2_hat, digits = 4)`$
+
+we obtain $|Z_{0}| = `r abs(round(Z0, digits = 2))`$, which is less then critical value of 1.96 for normally distributed statistic. Therefore, there is not enough evidence to reject null hypothesis. 
