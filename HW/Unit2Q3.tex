@@ -1,0 +1,40 @@
+
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{setspace}
+\usepackage{geometry}
+\geometry{legalpaper, portrait, margin=1in}
+\author{Artem Lebedev}
+\title{W271, Unit 2 Question 3}
+\date{\today}
+
+\begin{document}
+	
+\maketitle
+
+
+\large \textbf{Logit of odds ratio}\\
+Omitting bias term, logit model: 
+\begin{align*}
+\pi =    \frac{exp(\beta x)}{1- exp(\beta x)}
+\end{align*}
+
+Odds ratio: 
+\begin{align*}
+	\frac{\pi}{1- \pi}
+\end{align*}
+
+Combining two together:
+
+Odds ratio: 
+\begin{align*}
+	\frac{\pi}{1- \pi} &=  \frac{\frac{exp(\beta x)}{1- exp(\beta x)}}{1-\frac{exp(\beta x)}{1- exp(\beta x)}}\\
+	& = \frac{\frac{exp(\beta x)}{1- exp(\beta x)}}{\frac{1}{1- exp(\beta x)}}\\
+	& = exp(\beta x)
+\end{align*}
+Take log of the equation: 
+\begin{align*}
+	log(\frac{\pi}{1- \pi}) & = log(exp(\beta x))\\
+	& = \beta x
+\end{align*}
+\end{document}

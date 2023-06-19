@@ -1,0 +1,45 @@
+---
+title : 'W271 Unit 2 Q4'
+output: 
+  pdf_document:
+    toc: FALSE
+    number_sections: true
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sandwich)
+library(lmtest)
+library(car)
+```
+```{r, include=FALSE}
+# Set up knitr
+require(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=TRUE, message=FALSE, warning=FALSE)
+```
+
+```{r}
+B_0 <- 1
+B_1_1 <- 0.8
+B_1_2 <- 0.2
+xs <- seq(-10, 10, by = 0.01)
+logit_1 <- exp(B_0 + B_1_1 * xs) / (1 + exp(B_0 + B_1_1 * xs))
+logit_2 <- exp(B_0 + B_1_2 * xs) / (1 + exp(B_0 + B_1_2 * xs))
+
+df <- data.frame(xs)
+df$logit_1 <- logit_1
+df$logit_2 <- logit_2
+
+# Rename appropriate columns
+colnames(df) <- c("xs", "logit_1", "logit_2")
+```
+
+
+```{r}
+#Plot data
+ggplot(data = df, aes(df$xs)) +
+  geom_line(aes(y = df$logit_1, colour = "logit_1")) +
+  geom_line(aes(y = df$logit_2, colour = "logit_2")) +
+  labs(title = "Logit functions for two parameters") +
+  xlab("x") + ylab("Logit")
+```

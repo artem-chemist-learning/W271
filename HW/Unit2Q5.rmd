@@ -1,0 +1,35 @@
+---
+title : 'W271 Unit 2 Q4'
+output: 
+  pdf_document:
+    toc: FALSE
+    number_sections: true
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sandwich)
+library(lmtest)
+library(car)
+```
+```{r, include=FALSE}
+# Set up knitr
+require(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=TRUE, message=FALSE, warning=FALSE)
+```
+
+```{r}
+df <- read.table("Placekick.csv")
+mod.fit2 <- glm(formula = good ~ change + distance, family = binomial(link = logit()), data = df)
+summary(mod.fit2)
+```
+
+
+```{r}
+#Plot data
+ggplot(data = df, aes(df$xs)) +
+  geom_line(aes(y = df$logit_1, colour = "logit_1")) +
+  geom_line(aes(y = df$logit_2, colour = "logit_2")) +
+  labs(title = "Logit functions for two parameters") +
+  xlab("x") + ylab("Logit")
+```

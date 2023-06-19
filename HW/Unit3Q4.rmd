@@ -1,0 +1,72 @@
+---
+title : 'W271 Unit 2 Q4'
+output: 
+  pdf_document:
+    toc: FALSE
+    number_sections: true
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sandwich)
+library(lmtest)
+library(car)
+```
+
+```{r}
+# Read the data
+pk <- read.csv("Placekick.csv")
+
+# Estimate two models
+mod_base <- glm(formula = good ~ distance,
+                family = binomial(),
+                data = pk)
+mod_quad <- glm(formula = good ~ distance + I(distance^2),
+                family = binomial(),
+                data = pk)
+
+```
+
+```{r prepare dataframes}
+# Make a dataframe for bubbles
+w <- aggregate(x = good ~ distance,
+               data = pk, FUN = sum)
+n <- aggregate(x = good ~ distance,
+               data = pk, FUN = length)
+wn <- data.frame(distance = w$distance,
+                  success = w$good,
+                  trials = n$good,
+                  prob = w$good / n$good)
+
+#Make a dataframe for model lines
+xs <- seq(10, 100, by = 0.1)
+y_base <- predict(object = mod_base,
+              newdata = data.frame(distance = xs, wind = 1),
+              type = "response")
+y_quad <- predict(object = mod_quad,
+              newdata = data.frame(distance = xs, wind = 1),
+              type = "response")
+df_base <- data.frame(distance = xs,
+                        model = y_base, quad = "Linear term only")
+df_quad <- data.frame(distance = xs,
+                        model = y_quad, quad = "Linear and quadratic term")
+df_pred <- rbind(df_base, df_quad)
+```
+
+```{r make plot}
+ggplot() + theme_minimal() + # Base plot object and theme
+geom_point( data = wn,       # Geom for bubbles
+            aes(x = wn$distance,
+                y = wn$prob,
+                size = wn$trials),
+            shape = 21,
+            fill = "white"
+          ) +
+geom_line(  data = df_pred,   #Geom for lines
+            aes(x = distance, y = model, colour = as.factor(quad))
+            ) +
+xlim(18, 65) + xlab("Distance (yards)") + ylab("Estimated probability") +
+theme(legend.position = c(0.3, 0.2)) + # positions legend
+scale_size(guide = FALSE) +   # Removes the legend for bubbles
+labs(color = NULL)            # Removes legend title
+```

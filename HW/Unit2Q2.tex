@@ -1,0 +1,59 @@
+
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{setspace}
+\usepackage{geometry}
+\geometry{legalpaper, portrait, margin=1in}
+\author{Artem Lebedev}
+\title{W271, Unit 2 Question 2}
+\date{\today}
+
+\begin{document}
+	
+\maketitle
+
+
+\large \textbf{Variance of Linear Probability model}\\
+Bias term is inconsequential to this derivation. Omitting the bias we can express LPM as the following:
+\begin{align*}
+	y_{i}=\beta x_{i} + \epsilon_{i}\text{ where}\\
+	\begin{cases}
+		y = 1: p(x_{i})\\
+		y = 0: 1-p(x_{i})\\
+	\end{cases}
+\end{align*}
+Note that expectation of $\epsilon_{i}$ is 0, because of the properties of OLS. Therefore:
+\begin{align*}
+	Var(\epsilon_{i}) &=E[(\epsilon_{i} - E(\epsilon_{i}))^2]\\
+					& = E[\epsilon_{i}^2]
+\end{align*}
+Given the fact that y can only take two values, $\epsilon_{i}$ also can only take two values:
+\begin{align*}
+	\begin{cases}
+		1 - \beta x_{i}: p(x_{i})\\
+		0 - \beta x_{i}: 1-p(x_{i})\\
+	\end{cases}
+\end{align*}
+
+Using this fact and definition of the expectation:
+\begin{align*}
+	Var(\epsilon_{i}) & = E[\epsilon_{i}^2]\\
+					  & = (1 - \beta x_{i})^2 p(x_{i}) + (0 - \beta x_{i})^2(1-p(x_{i}))
+\end{align*}
+
+Now, using the fact that $ E[y|x_{i}] = p(x_{i})$, derived in the lecture, we can write:
+\begin{align*}kl0000000
+	
+	09
+	gh 0p,nnnn999
+		qdsssssskjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+	\bigsqcup\\\\\9999999hj\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\doublebarwedg,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,dfs-000000000000000000
+	p(x_{i}) & = E[y_{j}|x_{i}]\\\
+			 & = E[\beta jjjj6bbbbbbbbbbbbbbbbbbbbbbbbb
+\begin{align*}
+	Var(\epsilon_{i}) & = (1 - \beta x_{i})^2 \beta x_{i} + (0 - \beta x_{i})^2(1-\beta x_{i}))\\999
+	& = (1 - \beta x_{i})\beta x_{i}(1-\beta x_{i} + \beta x_{i})\\999990000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000Q9X& = (1 - p(x_{i}))p(x_{i})	`1Q																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																	``AX9zv +{O{YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY1c6\arccos466666666=\coprod\bigcup\bigcupbbbbbkjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj`````````````````````````````````````````````````````````````````````llllll``````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````llcxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`````````````````````````````````````````````````````````````````````````````````````````\coth
+	kl\\k=
+\end{align*}
+	
+\end{document}

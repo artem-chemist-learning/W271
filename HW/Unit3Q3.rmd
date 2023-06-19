@@ -1,0 +1,69 @@
+---
+title : 'W271 Unit 2 Q4'
+output: 
+  pdf_document:
+    toc: FALSE
+    number_sections: true
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sandwich)
+library(lmtest)
+library(car)
+```
+```{r, include=FALSE}
+# Set up knitr
+require(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=TRUE, message=FALSE, warning=FALSE)
+```
+
+```{r}
+pk <- read.csv("Placekick.csv")
+mod_base <- glm(formula = good ~ distance + wind,
+                family = binomial(),
+                data = pk)
+mod_inter <- glm(formula = good ~ distance + wind + distance:wind,
+                family = binomial(),
+                data = pk)
+
+```
+
+```{r}
+# Read data
+pk <- read.csv("Placekick.csv")
+
+# Create models
+mod_base <- glm(formula = good ~ distance + wind,
+                family = binomial(),
+                data = pk)
+mod_inter <- glm(formula = good ~ distance + wind + distance:wind,
+                family = binomial(),
+                data = pk)
+
+# Make plots WITH NO interations
+curve(expr = predict(object = mod_base,
+                    newdata = data.frame(distance = x, wind = 0),
+                    type = "response"),
+      col = "red",
+      xlim = c(20, 60),
+      ylim = c(0, 1)
+      )
+curve(expr = predict(object = mod_base, newdata = data.frame(distance = x, wind = 1), type = "response"),
+      col = "blue",
+      lty = 4,
+      add = TRUE
+      )
+
+# Make plots WITH interations
+curve(expr = predict(object = mod_inter, newdata = data.frame(distance = x, wind = 0), type = "response"),
+      col = "red",
+      xlim = c(20, 60),
+      ylim = c(0, 1)
+      )
+curve(expr = predict(object = mod_inter, newdata = data.frame(distance = x, wind = 1), type = "response"),
+      col = "blue",
+      lty = 4,
+      add = TRUE
+      )
+```
