@@ -24,6 +24,7 @@ library(blsR)
 
 ```{r set themes, echo = FALSE}
 theme_set(theme_minimal())
+options(dplyr.summarise.inform = FALSE)
 ```
 
 # Plot Flights and Weather Data
@@ -151,6 +152,7 @@ summary(weather)
 ```
 
 ```{r failing creation of weather data}
+#The command below fails as described in the prompt
 # weather_ts <- as_tsibble(weather, key = origin, index = time_index)
 ```
 
@@ -159,17 +161,17 @@ summary(weather)
 ```{r checking for duplicates}
 weather %>%
   mutate(time_index = make_datetime(year, month, day, hour)) %>%
-  duplicates(key = origin, index = time_index) 
+  duplicates(key = origin, index = time_index) %>% head()
 ```
+> It appears that there are few duplicates of the data that were taken at the same time, at the same location. The observed values are similar and valid. Possibly, they are from different sesnors or taken within the same hour. A reasonable approach would be to replace groups of repetitive observations with their median.
 
-
-```{r clean weather data, warning=FALSE}
+```{r clean weather data, warning=FALSE, results=FALSE, error=FALSE}
 weather_clean <- weather %>%
  group_by(origin, time_index)  %>%
  summarise(across(1:14, ~median(.x)))
 ```
 
-
+> Now this dataframe can be coerced into tsibble:
 ```{r create weather data}
 weather_ts <- as_tsibble(weather_clean, key = origin, index = time_index)
 ```
@@ -229,7 +231,9 @@ yearly_plot /
      subtitle = 'Many Different Views',
      tag_levels = 'A') & 
    labs(x = NULL, y = 'Temperature') 
+
 ```
+> Plots offer few surprises. On the scale of a year, tempearture raises around July and ges down toward December. On the scale of a month heat waves and cold spells become apparent. Interestingly, on the weekly scale it becomes obvious that in the summer JFK experiences generally coller temps, as compared to La Guardia and Newark. This is probably becasue JFK is located right on the shores of New York bay, while the other two airports are further away from large bodies of water. It is also apprent that dayly variability is mauch lower in the winter then in the summer, possibly becasue the teperatures are much closerto the phase transition temperature of water. 
 
 ## (1 point) Hourly ACF
 
@@ -247,6 +251,9 @@ hourly_lag <- weather_ts %>%filter(origin == "JFK") %>%
 hourly_acf | hourly_lag
 ```
 
+> Both ACF and lag plots show strong correlation between consequtive hourly measurements. The correlation is becoming weaker as the lag increases.  
+
+
 ## (1 point) Weekly ACF
 
 At the weekly level, produce an ACF and a lag plot of the weekly average temperature at JFK. What do you learn from these plots?
@@ -261,6 +268,7 @@ weekly_lag <- weather_ts %>% filter(origin == "JFK") %>%
 
 weekly_acf | weekly_lag
 ```
+> Both ACF and lag plots show strong correlation between consequtive weekly measurements, which is not surprising, given the fact that the weather does not change completely randomly from one day to the next.  The correlation is becoming weaker as the lag increases and at some point, when the lag extends to the "oposite" season, the correlation inverts.
 
 ## (1 point) Monthly ACF
 
@@ -275,6 +283,7 @@ monthly_lag <-  weather_ts %>% filter(origin == "JFK") %>%
 
 monthly_acf | monthly_lag
 ```
+> Both ACF and lag plots show strong correlation between consequtive monthly averages, which is not surprising, given yearly cycles of climate.  The correlation is becoming weaker as the lag increases and at some point, when the lag extends into to the "oposite" season, the correlation inverts.
 
 # Question 3 - Evaluate Time Series Objects
 
