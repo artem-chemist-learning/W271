@@ -5,7 +5,7 @@ output:
   html_document: default
 ---
 
-```{r load packages, message=FALSE, warning=FALSE}
+```{r load packages, echo = FALSE, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(patchwork) 
 
@@ -22,7 +22,7 @@ library(nycflights13)
 library(blsR)
 ```
 
-```{r set themes}
+```{r set themes, echo = FALSE}
 theme_set(theme_minimal())
 ```
 
@@ -54,9 +54,10 @@ As stored, both `flights` and `weather` are stored a "plain" data frames. To beg
 ```{r flight times}
 flights
 ```
-```{r create tsibble}
-flights$time_index <- as_datetime(1511870400)
-year(flights$time_index)<-flights$year
+
+```{r create time index}
+flights$time_index <- as_datetime(1511870400) #Set a random time for all entries
+year(flights$time_index)<-flights$year #Assign year etc into time index
 month(flights$time_index)<-flights$month
 day(flights$time_index)<-flights$day
 hour(flights$time_index)<-flights$hour
@@ -64,7 +65,7 @@ minute(flights$time_index)<-flights$minute
 ```
 
 
-```{r create tsibble}
+```{r create flight tsibble}
 flights_ts <- as_tsibble(flights, key = (carrier|flight), index = time_index)
 ```
 
@@ -141,19 +142,18 @@ Turn your attention to the weather data that is provided in the `nycflights13::w
 
 This is a *very* helpful error, with a helpful error message. If you see this error message, we suggest doing as the message suggests, and look into the `duplicates()` function to determine what the issue is. Once you have found the issue, (1) document the issue; (2) propose a solution that seems reasonable; and, (3) implement your proposed solution and keep it moving to answer this question.
 ```{r}
-
+weather <- nycflights13::weather
+weather$time_index <- make_datetime(year = weather$year,
+                                    month= weather$month,
+                                    day = weather$day,
+                                    hour = weather$hour)
 summary(weather)
 ```
 
 ```{r failing creation of weather data}
-weather <- nycflights13::weather
-weather$time_index <- as_datetime(1511870400)
-year(weather$time_index)<-weather$year
-month(weather$time_index)<-weather$month
-day(weather$time_index)<-weather$day
-hour(weather$time_index)<-weather$hour
 # weather_ts <- as_tsibble(weather, key = origin, index = time_index)
 ```
+
 
 
 ```{r checking for duplicates}
@@ -161,7 +161,9 @@ weather %>%
   mutate(time_index = make_datetime(year, month, day, hour)) %>%
   duplicates(key = origin, index = time_index) 
 ```
-```{r clean weather data}
+
+
+```{r clean weather data, warning=FALSE}
 weather_clean <- weather %>%
  group_by(origin, time_index)  %>%
  summarise(across(1:14, ~median(.x)))
@@ -192,7 +194,7 @@ In your workflow, first create each of the plots. Then, use the `patchwork` pack
 
 After you produce this figure, comment on what you notice at each of these scales and the figure overall.
 
-```{r plot yearly temperature}
+```{r plot yearly temperature, warning=FALSE}
 yearly_plot <- weather_ts  %>%
   ggplot() + aes(x = time_index, y = temp, color = origin) +
   geom_line()
@@ -208,7 +210,7 @@ july_plot <-   weather_ts %>% filter_index("2013-07-01" ~ "2013-07-31")  %>%
   geom_line()
 ```
 
-```{r plot weekly temperatures}
+```{r plot weekly temperatures, warning=FALSE}
 january_first_week <- weather_ts %>% filter_index("2013-01-01" ~ "2013-01-07")  %>%
   ggplot() + aes(x = time_index, y = temp, color = origin) +
   geom_line()
@@ -234,12 +236,15 @@ yearly_plot /
 At the hourly level, produce an ACF and a lag plot at JFK. What do you learn from these plots? (Note that you can suppress all the coloring in the `gg_lag` call if you pass an additional argument, `color = 1`.)
 
 ```{r hourly plots}
+hourly_acf <- weather_ts %>%filter(origin == "JFK") %>%
+                            index_by(hour_new = ~hour(.) )%>%
+                            summarise(temp = mean(temp)) %>%
+                            ACF(temp) %>% autoplot()
 
-# hourly_acf <- weather_ts %>%filter(origin == "JFK") %>% ACF(temp, na.action = "na.pass")
 hourly_lag <- weather_ts %>%filter(origin == "JFK") %>%
   gg_lag(temp, lag = 1:8, geom = "point", color = 1)
 
-#hourly_acf | hourly_lag
+hourly_acf | hourly_lag
 ```
 
 ## (1 point) Weekly ACF
@@ -310,11 +315,11 @@ Along with each plot, include descriptive text (at least several sentences, but 
 
 Your analysis and description of each dataset should fit onto a single PDF page.
 
-```{r make datasets}
+```{r make datasets, warning=FALSE}
 make_datasets()
 ```
 
-```{r plot datasets}
+```{r plot datasets, warning=FALSE}
 plot1 <- dataset_1 %>% autoplot()
 plot2 <- dataset_2 %>% autoplot()
 plot3 <- dataset_3 %>% autoplot()
@@ -323,7 +328,7 @@ plot5 <- dataset_5 %>% autoplot()
 
    (plot1| plot2) /
    (plot3 | plot4) /
-   (plot5| plot5)
+   (plot5)
 
 ```
 
@@ -445,7 +450,7 @@ uer_series <- get_n_series_table(series_ids,
 uer_series$period <- as.integer(str_sub(uer_series$period, 2, 3))
 names(uer_series) <- c("year", "month", "overall", "male", "female")
 unemployment <- pivot_longer(uer_series, cols = 3:5, names_to = "name", values_to = "value")
-unemployment$time_index <- ym(paste(unemployment$year, unemployment$month))
+unemployment$time_index <- yearmonth(paste(unemployment$year, unemployment$month))
 ```
 
 
@@ -470,5 +475,5 @@ unemp_ts <- unemployment %>% filter(name == "overall") %>% as_tsibble(key = 'nam
 unemployment_acf <- unemp_ts %>% ACF(value) %>% autoplot()
 unemployment_lag <- unemp_ts %>% gg_lag(value, lag = 1:9, geom = "point", color = 1)
 
-unemployment_lag
+unemployment_acf | unemployment_lag
 ```
