@@ -3,7 +3,7 @@ title: "W271 Assignment 7"
 output: pdf_document
 ---
 
-```{r load packages, message=FALSE, warning=FALSE}
+```{r load packages, message=FALSE, warning=FALSE, echo = FALSE}
 library(tidyverse)
 library(magrittr)
 library(patchwork)
@@ -21,7 +21,7 @@ library(nycflights13)
 library(blsR)
 ```
 
-```{r set themes}
+```{r set themes, echo = FALSE}
 theme_set(theme_minimal())
 ```
 
@@ -43,22 +43,50 @@ In the async lecture, Jeffrey says "BIC is in general more stringent than AIC or
 4. Finally, produce a plot that shows the AIC and BIC values on the y-axis and the number of estimated parameters on the x-axis. In the subtitle to your plot, note whether a relatively higher or lower AIC or BIC means that a model is performing better or worse (i.e. either "Higher values are better" or "Lower values are better"). What do you notice about these plots, and what does this tell you about the "stringency" of AIC vs. BIC?
 
 ```{r create white-noise data}
-
+d <- cbind.data.frame(rnorm(100), rnorm(100),
+                      rnorm(100), rnorm(100),
+                      rnorm(100), rnorm(100),
+                      rnorm(100), rnorm(100),
+                      rnorm(100), rnorm(100), rnorm(100))
+names(d) <- c("y", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10")
 ```
 
 ```{r estimate 11 white-noise models}
-
+model0 <- lm(formula = y ~ rep(mean(d$y), 100), data = d)
+model1 <- lm(formula = y ~ x1, data = d)
+model2 <- lm(formula = y ~ x1 + x2, data = d)
+model3 <- lm(formula = y ~ x1 + x2 +x3, data = d)
+model4 <- lm(formula = y ~ x1 + x2 +x3 + x4, data = d)
+model5 <- lm(formula = y ~ x1 + x2 +x3 + x4+ x5, data = d)
+model6 <- lm(formula = y ~ x1 + x2 +x3 + x4 + x5 +x6, data = d)
+model7 <- lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7, data = d)
+model8 <- lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7 + x8, data = d)
+model9 <- lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7 + x8 + x9, data = d)
+model10<-lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7 + x8 + x9 + x10, data=d)
 ```
 
 ```{r make results data with scores of AIC and BIC for each white-noise model}
-
+models <- list(model0, model1, model2, model3, model4, model5, model6, model7, 
+            model8, model9, model10)
+results_data <- data.frame(matrix(nrow = 0, ncol = 3))
+colnames(results_data) <- c("parameters", "criterion", "value")
+counter = 0
+for (model in models){
+  AIC <- 1 + (2 * counter / 100) + log(sum(model$residuals * model$residuals)/100)
+  results_data[nrow(results_data) + 1,] <- list(counter, "AIC", AIC)
+  BIC <- (counter *log(100) / 100) + log(sum(model$residuals * model$residuals)/100)
+  results_data[nrow(results_data) + 1,] <- list(counter, "BIC", BIC)
+  counter = counter+1
+}
 ```
 
 ```{r plot white-noise model data}
-
+results_data %>% ggplot() + aes(x = parameters, y = value, colour = criterion) +
+  geom_line() + labs(title = "AIC and BIC for models with increasing complexity", subtitle = "Lower values are better")
 ```
 
 > What do you note? Fill this in! 
+> Adding parameters beyond just constant inflates both criteria. BIC appears to be a more stringent criterion because it reacts much stronger to adding meaningless parameters. While AIC only increased by 10% upon adding 10 meaningless parameters, BIC went up almost by factor of 5. 
 
 ## (2 points) Part-2
 
@@ -70,22 +98,58 @@ Now, suppose that you had data that, *in the population model* actually held a r
 - Produce the same plot as you did before with the white noise series. Comment on what, if anything is similar or different between this plot, and the plot you created before. 
 
 ```{r create data}
+coeffs <- seq(from = 0, to  = 1, by = 0.1)
+d_trend <- as_tibble( data.frame(matrix(nrow=100,ncol=0)) )
+counter = 1
+for (k in seq(1:10)){
+  d_trend[as.character(k)] <- rnorm(100)   
+}
 
+d_trend["y"] <- rnorm(100)
+for (k in seq(1:10)){
+   d_trend["y"] <- d_trend["y"] + 0.1*k*d_trend[as.character(k)]  
+}
+
+colnames(d_trend) <- c("x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "y")
 ```
 
 ```{r estimate models}
+model0 <- lm(formula = y ~ rep(mean(d_trend$y), 100), data = d_trend)
+model1 <- lm(formula = y ~ x1, data = d_trend)
+model2 <- lm(formula = y ~ x1 + x2, data = d_trend)
+model3 <- lm(formula = y ~ x1 + x2 +x3, data = d_trend)
+model4 <- lm(formula = y ~ x1 + x2 +x3 + x4, data = d_trend)
+model5 <- lm(formula = y ~ x1 + x2 +x3 + x4+ x5, data = d_trend)
+model6 <- lm(formula = y ~ x1 + x2 +x3 + x4 + x5 +x6, data = d_trend)
+model7 <- lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7, data = d_trend)
+model8 <- lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7 + x8, data = d_trend)
+model9 <- lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7 + x8 + x9, data = d_trend)
+model10<-lm(formula = y ~ x1 + x2 +x3+ x4 + x5 +x6 + x7 + x8 + x9 + x10, data=d_trend)
 
 ```
 
 ```{r make results data with scores of AIC and BIC for each model}
-
+models <- list(model0, model1, model2, model3, model4, model5, model6, model7, 
+            model8, model9, model10)
+results_data_trend <- data.frame(matrix(nrow = 0, ncol = 3))
+colnames(results_data_trend) <- c("parameters", "criterion", "value")
+counter = 0
+for (model in models){
+  AIC <- 1 + (2 * counter / 100) + log(sum(model$residuals * model$residuals)/100)
+  results_data_trend[nrow(results_data_trend) + 1,] <- list(counter, "AIC", AIC)
+  BIC <- (counter *log(100) / 100) + log(sum(model$residuals * model$residuals)/100)
+  results_data_trend[nrow(results_data_trend) + 1,] <- list(counter, "BIC", BIC)
+  counter = counter+1
+}
 ```
 
 ```{r plot model data}
-
+results_data_trend %>% ggplot() + aes(x = parameters, y = value, colour = criterion) +
+  geom_line() + labs(title = "AIC and BIC for models with increasing complexity", subtitle = "Lower values are better")
 ```
 
 > What do you notice about this plot and the model performance overall? 
+> Adding parameters that affect the outcome strongly influences the value for both criteria, while adding weakly affecting parameters does not change AIC and BIC much. BIC appears to be a more stringent criterion because it takes even more meaningful parameters to make a significant change in BIC. 
 
 # Question-2: Weather in NYC 
  

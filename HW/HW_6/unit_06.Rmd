@@ -172,10 +172,10 @@ weather_clean <- weather %>%
 ```
 
 > Now this dataframe can be coerced into tsibble:
+
 ```{r create weather data}
 weather_ts <- as_tsibble(weather_clean, key = origin, index = time_index)
 ```
-
 
 
 ## (4 points) Plot temperature
@@ -324,11 +324,11 @@ Along with each plot, include descriptive text (at least several sentences, but 
 
 Your analysis and description of each dataset should fit onto a single PDF page.
 
-```{r make datasets, warning=FALSE}
+```{r make datasets, warning=FALSE, result = FALSE, error=FALSE}
 make_datasets()
 ```
 
-```{r plot datasets, warning=FALSE}
+```{r plot datasets, warning=FALSE, result = FALSE, error=FALSE}
 plot1 <- dataset_1 %>% autoplot()
 plot2 <- dataset_2 %>% autoplot()
 plot3 <- dataset_3 %>% autoplot()
@@ -344,52 +344,57 @@ plot5 <- dataset_5 %>% autoplot()
 ## (1 point) Dataset One
 
 ```{r dataset one exploration}
-plot1_acf <- dataset_1 %>% as_tsibble() %>% ACF(y) %>% autoplot()
-plot1_pcf <- dataset_1 %>% as_tsibble() %>% ACF(y, type = c("partial")) %>% autoplot()
+plot1_acf <- dataset_1 %>% as_tsibble() %>% ACF(y, lag_max = 200) %>% autoplot()
+plot1_pcf <- dataset_1 %>% as_tsibble() %>% ACF(y, type = c("partial"), lag_max = 28) %>% autoplot()
 plot1_lag <- dataset_1 %>% as_tsibble() %>% gg_lag(y, lag = 1:9, geom = "point", color = 1)
 
 plot1_acf | plot1_lag | plot1_pcf
 ```
+> The series is chrachterised by short-lived trends that last for a few weeks. There is a strong autocorrelation with lag 1, that fades away almost completely beyond lag 3. 
 
 ## (1 point) Dataset Two
 
 ```{r dataset two exploration}
-plot2_acf <- dataset_2 %>% as_tsibble() %>% ACF(y) %>% autoplot()
-plot2_pcf <- dataset_2 %>% as_tsibble() %>% ACF(y, type = c("partial")) %>% autoplot()
+plot2_acf <- dataset_2 %>% as_tsibble() %>% ACF(y, lag_max = 200) %>% autoplot()
+plot2_pcf <- dataset_2 %>% as_tsibble() %>% ACF(y, type = c("partial"), lag_max = 7) %>% autoplot()
 plot2_lag <- dataset_2 %>% as_tsibble() %>% gg_lag(y, lag = 1:9, geom = "point", color = 1)
 
 plot2_acf | plot2_lag | plot2_pcf
 ```
+> The series lack any long or medium lived trend. There appears to be a noticible autocorrelation with lag 1 and switching sign, i.e. oscislation with 1 day period. 
 
 ## (1 point) Dataset Three
 
 ```{r dataset three exploration}
-plot3_acf <- dataset_3 %>% as_tsibble() %>% ACF(y) %>% autoplot()
-plot3_pcf <- dataset_3 %>% as_tsibble() %>% ACF(y, type = c("partial")) %>% autoplot()
+plot3_acf <- dataset_3 %>% as_tsibble() %>% ACF(y, lag_max = 200) %>% autoplot()
+plot3_pcf <- dataset_3 %>% as_tsibble() %>% ACF(y, type = c("partial"), lag_max = 200) %>% autoplot()
 plot3_lag <- dataset_3 %>% as_tsibble() %>% gg_lag(y, lag = 1:9, geom = "point", color = 1)
 
 plot3_acf | plot3_lag | plot3_pcf
 ```
+> The series has both long-term trend and and medium-term trends that switch directions. 
 
 ## (1 point) Dataset Four
 
 ```{r dataset four exploration}
-plot4_acf <- dataset_4 %>% as_tsibble() %>% ACF(y) %>% autoplot()
-plot4_pcf <- dataset_4 %>% as_tsibble() %>% ACF(y, type = c("partial")) %>% autoplot()
+plot4_acf <- dataset_4 %>% as_tsibble() %>% ACF(y, lag_max = 50) %>% autoplot()
+plot4_pcf <- dataset_4 %>% as_tsibble() %>% ACF(y, type = c("partial"), lag_max = 50) %>% autoplot()
 plot4_lag <- dataset_4 %>% as_tsibble() %>% gg_lag(y, lag = 1:9, geom = "point", color = 1)
 
 plot4_acf | plot4_lag | plot4_pcf
 ```
+> The series is very close to white noise, but it is suspicious how noise tends to form cluster, with 4-5 day periods. There is a chance of weak weekly oscilations masked by strong noise.
 
 ## (1 point) Dataset Five
 
 ```{r dataset five exploration}
-plot5_acf <- dataset_5 %>% as_tsibble() %>% ACF(y) %>% autoplot()
-plot5_pcf <- dataset_5 %>% as_tsibble() %>% ACF(y, type = c("partial")) %>% autoplot()
+plot5_acf <- dataset_5 %>% as_tsibble() %>% ACF(y, lag_max = 20) %>% autoplot()
+plot5_pcf <- dataset_5 %>% as_tsibble() %>% ACF(y, type = c("partial"), lag_max = 20) %>% autoplot()
 plot5_lag <- dataset_5 %>% as_tsibble() %>% gg_lag(y, lag = 1:9, geom = "point", color = 1)
 
 plot5_acf | plot5_lag | plot5_pcf
 ```
+> The series similar to the previos one, but oscialtions are even more visible. 
 
 # Question 4 - BLS Data
 
