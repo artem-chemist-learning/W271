@@ -240,10 +240,11 @@ for (model in models_temp){
   counter = counter+1
 }
 
-temp_plot <- temp_IC %>% ggplot()
-+ aes(x = degrees, y = value, colour = criterion)
-+ geom_point() + labs(title = "Temp models")
-+ theme(legend.position = "none") + xlim(0,10)
+temp_plot <- temp_IC %>% ggplot() + 
+  aes(x = degrees, y = value, colour = criterion) + 
+  geom_point() + geom_line() + labs(title = "Temp models") + 
+  theme(legend.position = "none") + 
+  scale_x_continuous(breaks=c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
 ```
 
 ```{r evaluate BIC for dewpoint}
@@ -258,9 +259,10 @@ for (model in models_dew){
   counter = counter+1
 }
 
-dew_plot <- dew_IC %>% ggplot()
-+ aes(x = degrees, y = value, colour = criterion) 
-+ geom_point() + labs(title = "Dew models") + xlim(0,10)
+dew_plot <- dew_IC %>% ggplot() +
+  aes(x = degrees, y = value, colour = criterion) +
+  geom_point() + geom_line() + labs(title = "Dew models") + 
+  scale_x_continuous(breaks=c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
 
 ```
 
