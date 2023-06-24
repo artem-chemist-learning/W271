@@ -23,6 +23,7 @@ library(blsR)
 
 ```{r set themes, echo = FALSE}
 theme_set(theme_minimal())
+options(dplyr.summarise.inform = FALSE)
 ```
 
 # Question-1: AIC and BIC and "Stringency" 
@@ -171,8 +172,29 @@ Load the weather data in the same way as you did in the previous assignment, rec
      3 EWR      2013 W03                39.6            26.5 
 
 ```{r create weekly weather data}
+#  Load the data
+weather <- nycflights13::weather
 
+# Makr time index
+weather$time_index <- make_datetime(year = weather$year,
+                                    month= weather$month,
+                                    day = weather$day,
+                                    hour = weather$hour)
+#  Remove duplicates by taking a median among them
+weather <- weather %>%
+ group_by(origin, time_index)  %>%
+ summarise(across(1:14, ~median(.x)))
+
+#  Coerce into tsibble
+weather_ts <- as_tsibble(weather, key = origin, index = time_index)
+
+# Create weekly aggregation
+weather_weekly <- weather_ts  %>%
+ index_by(week = ~week(.)) %>% summarise(across(6:7, ~mean(.x)))
+
+head(weather_weekly)
 ```
+
 
 ## (2 points) Part-2: Fit Polynomial Regression Models 
 
@@ -184,11 +206,20 @@ For each of the `average_temperature` and `average_dewpoint` create ten models t
 Additionally, you might recall that in 203, we actually recommended you away from using the `poly` function. That was a recommendation based on students' knowledge at the time, when we were considering fitting log and square root transformations of data. At this point, you can handle the additional complexity and can take the recommendation that `poly` is nice for working with polynomial translations of time. 
 
 ```{r create a numeric_week variable with minimum value of zero}
+weather_weekly$week <- weather_weekly$week - 1
 
 ```
 
 ```{r fit models for average_temperature and average_dewpoint}
+degrees <- seq(1:10)
+models_temp <- list()
+models_dew <- list()
 
+for (degree in degrees){
+  models_temp[[degree]] <- lm(formula = temp ~ poly(week, degree=degree), data = weather_weekly)
+  models_dew[[degree]] <- lm(formula = dewp ~ poly(week, degree=degree), data = weather_weekly)
+
+}
 ```
 
 ## (2 points) Part-3: Evalute the model fits best for each outcomes
@@ -198,10 +229,43 @@ For each of the outcomes -- `average_temperature` at the weekly level, and `aver
 
 ```{r evalute BIC for temperature}
 
+temp_IC <- data.frame(matrix(nrow = 0, ncol = 3))
+colnames(temp_IC) <- c("degrees", "criterion", "value")
+counter = 1
+for (model in models_temp){
+  AIC <- 1 + (2 * counter / 100) + log(sum(model$residuals * model$residuals)/100)
+  temp_IC[nrow(temp_IC) + 1,] <- list(counter, "AIC", AIC)
+  BIC <- (counter *log(100) / 100) + log(sum(model$residuals * model$residuals)/100)
+  temp_IC[nrow(temp_IC) + 1,] <- list(counter, "BIC", BIC)
+  counter = counter+1
+}
+
+temp_plot <- temp_IC %>% ggplot()
++ aes(x = degrees, y = value, colour = criterion)
++ geom_point() + labs(title = "Temp models")
++ theme(legend.position = "none") + xlim(0,10)
 ```
 
 ```{r evaluate BIC for dewpoint}
+dew_IC <- data.frame(matrix(nrow = 0, ncol = 3))
+colnames(dew_IC) <- c("degrees", "criterion", "value")
+counter = 1
+for (model in models_dew){
+  AIC <- 1 + (2 * counter / 100) + log(sum(model$residuals * model$residuals)/100)
+  dew_IC[nrow(dew_IC) + 1,] <- list(counter, "AIC", AIC)
+  BIC <- (counter *log(100) / 100) + log(sum(model$residuals * model$residuals)/100)
+  dew_IC[nrow(dew_IC) + 1,] <- list(counter, "BIC", BIC)
+  counter = counter+1
+}
 
+dew_plot <- dew_IC %>% ggplot()
++ aes(x = degrees, y = value, colour = criterion) 
++ geom_point() + labs(title = "Dew models") + xlim(0,10)
+
+```
+
+```{r Plot BIC and AIC}
+temp_plot | dew_plot
 ```
 
 Looking at these two BIC scoring criteria there seems to be a clear **lack** of improvement beyond a polynomial order of four. *Perhaps* moving from four to five would still increase the model's performance, but it is small compared to the polynomials 2-4. For us, if we were fitting this model, we would be likely to stop at `poly( , degree = 4)`. 
