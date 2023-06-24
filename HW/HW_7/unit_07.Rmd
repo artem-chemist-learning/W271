@@ -297,26 +297,26 @@ For each smoother that you produce:
 weather_weekly <- weather_weekly %>%
   group_by(origin) %>%
   mutate(
-    `temp_MA_3` = slider::slide_dbl(temp, mean,
-                .before = 3, .after = 0, .complete = TRUE),
-    `dew_MA_3` = slider::slide_dbl(dewp, mean,
-                .before = 3, .after = 0, .complete = TRUE)
+    `temp_MA` = slider::slide_dbl(temp, mean,
+                .before = 7, .after = 0, .complete = TRUE),
+    `dew_MA` = slider::slide_dbl(dewp, mean,
+                .before = 7, .after = 0, .complete = TRUE)
   )
 
 temp_plot_av <- weather_weekly %>%  ggplot() + 
-  geom_line(aes(x = week, y = temp_MA_3 , colour = origin)) +
+  geom_line(aes(x = week, y = temp_MA , colour = origin)) +
   geom_point(aes(x = week, y = temp , colour = origin)) +
   theme(legend.position = "none") +
   theme_minimal()
 
 dew_plot_av <- weather_weekly %>%  ggplot() + 
-  geom_line(aes(x = week, y = dew_MA_3 , colour = origin)) +
+  geom_line(aes(x = week, y = dew_MA , colour = origin)) +
   geom_point(aes(x = week, y = dewp , colour = origin)) +
   theme_minimal()
 
 temp_plot_av|dew_plot_av
 ```
-
+> Window of 7 points was selected as it seems to strike a balance between removing noise and preserving features of the series.
  
 ```{r regression smoother}
 
@@ -356,7 +356,8 @@ dew_plot_poly <- weather_weekly %>%  ggplot() +
 temp_plot_poly|dew_plot_poly
 
 ``` 
- 
+> 7'th dgree polynome was selected based on the previous BIC analysis.
+
 ```{r spline smoother}
 
 ```
@@ -383,5 +384,5 @@ dew_plot_kern <- weather_weekly %>%  ggplot() +
 temp_plot_kern|dew_plot_kern
 ```
 
-
+> Bandwidth 7 and kernel "normal" were selected as they offer a balance between reduction of noise and preserving overall features of the series. 
 
