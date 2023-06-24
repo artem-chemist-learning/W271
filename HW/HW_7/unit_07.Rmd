@@ -294,9 +294,21 @@ For each smoother that you produce:
 - Produce a plot that shows the original data as `geom_point()`, and the smoother's predictions as `geom_line()`.
 - Your goal is not to produce **any** smoother, but instead, for each class of smoother, the version that is doint the best job that is possible by this smoother. That is, you are working through the hyperparametrs to these algorithms to produce their most effective output. 
 
-```{r moving average smoother}
+```{r moving average smoother, warning=FALSE}
+weather_weekly <- weather_weekly %>%
+  group_by(origin) %>%
+  mutate(
+    `MA_3` = slider::slide_dbl(temp, mean,
+                .before = 3, .after = 0, .complete = TRUE)
+  )
+
+weather_weekly %>%  ggplot() + 
+  geom_line(aes(x = week, y = MA_3 , colour = origin)) +
+  geom_point(aes(x = week, y = temp , colour = origin)) +
+  theme_minimal()
 
 ```
+
  
  ```{r regression smoother}
  
