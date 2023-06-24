@@ -218,7 +218,6 @@ models_dew <- list()
 for (degree in degrees){
   models_temp[[degree]] <- lm(formula = temp ~ poly(week, degree=degree), data = weather_weekly)
   models_dew[[degree]] <- lm(formula = dewp ~ poly(week, degree=degree), data = weather_weekly)
-
 }
 ```
 
@@ -298,21 +297,65 @@ For each smoother that you produce:
 weather_weekly <- weather_weekly %>%
   group_by(origin) %>%
   mutate(
-    `MA_3` = slider::slide_dbl(temp, mean,
+    `temp_MA_3` = slider::slide_dbl(temp, mean,
+                .before = 3, .after = 0, .complete = TRUE),
+    `dew_MA_3` = slider::slide_dbl(dewp, mean,
                 .before = 3, .after = 0, .complete = TRUE)
   )
 
-weather_weekly %>%  ggplot() + 
-  geom_line(aes(x = week, y = MA_3 , colour = origin)) +
+temp_plot_av <- weather_weekly %>%  ggplot() + 
+  geom_line(aes(x = week, y = temp_MA_3 , colour = origin)) +
   geom_point(aes(x = week, y = temp , colour = origin)) +
+  theme(legend.position = "none") +
   theme_minimal()
 
+dew_plot_av <- weather_weekly %>%  ggplot() + 
+  geom_line(aes(x = week, y = dew_MA_3 , colour = origin)) +
+  geom_point(aes(x = week, y = dewp , colour = origin)) +
+  theme_minimal()
+
+temp_plot_av|dew_plot_av
 ```
 
  
- ```{r regression smoother}
- 
- ```
+```{r regression smoother}
+
+temp_JFK <- weather_weekly %>%
+  filter(origin == "JFK") %>%
+  mutate(
+    `temp_poly_4` = predict.lm(lm(formula = temp ~ poly(week, 4), data = .), .),
+    `dew_poly_4` = predict.lm(lm(formula = dewp ~ poly(week, 4), data = .), .)
+  )
+
+temp_EWR <- weather_weekly %>%
+  filter(origin == "EWR") %>%
+  mutate(
+    `temp_poly_4` = predict.lm(lm(formula = temp ~ poly(week, 4), data = .), .),
+    `dew_poly_4` = predict.lm(lm(formula = dewp ~ poly(week, 4), data = .), .)
+  )
+
+temp_LGA <- weather_weekly %>%
+  filter(origin == "LGA") %>%
+  mutate(
+    `temp_poly_4` = predict.lm(lm(formula = temp ~ poly(week, 4), data = .), .),
+    `dew_poly_4` = predict.lm(lm(formula = dewp ~ poly(week, 4), data = .), .)
+  )
+weather_weekly <- rbind.data.frame(temp_JFK, temp_EWR, temp_LGA)
+
+temp_plot_poly <- weather_weekly %>%  ggplot() + 
+  geom_line(aes(x = week, y = temp_poly_4 , colour = origin)) +
+  geom_point(aes(x = week, y = temp , colour = origin)) +
+  theme(legend.position = "none") +
+  theme_minimal()
+
+dew_plot_av_poly <- weather_weekly %>%  ggplot() + 
+  geom_line(aes(x = week, y = dew_poly_4 , colour = origin)) +
+  geom_point(aes(x = week, y = dewp , colour = origin)) +
+  theme_minimal()
+
+temp_plot_av|dew_plot_av
+
+``` 
  
 ```{r spline smoother}
 
