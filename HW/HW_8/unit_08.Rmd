@@ -19,6 +19,9 @@ library(lmtest)
 
 library(nycflights13)
 library(blsR)
+
+if(!"RSocrata"%in%rownames(installed.packages())) {install.packages("RSocrata")}
+library(RSocrata)
 ```
 
 ```{r set themes}
@@ -42,6 +45,28 @@ In the previous homework, you built a data pipeline to draw data from the BLS. W
 
 - Are there places where you took "shortcuts" that could be more fully developed?
 - Are the processes that could be made more modular, or better documented so that they are easier for you to understand what they are doing? You've been away from the code that you wrote for a few weeks, and so it might feel like "discovering" the code of a *mad-person* (Who even wrote this???)
+
+
+```{r pull unemployment data, warning = FALSE}
+series_ids <- list(uer.total ="LNS14000000", uer.men ="LNS14000001", uer.women = 'LNS14000002')
+uer_series <- get_n_series_table(series_ids,
+                                 '913c5fe448924ea584e043f736c95080',
+                                 start_year = 2000,
+                                 end_year = 2023)
+```
+
+```{r tidy unemployment data}
+uer_series$period <- as.integer(str_sub(uer_series$period, 2, 3))
+names(uer_series) <- c("year", "month", "overall", "male", "female")
+unemployment <- pivot_longer(uer_series, cols = 3:5, names_to = "name", values_to = "value")
+unemployment$time_index <- yearmonth(paste(unemployment$year, unemployment$month))
+```
+
+
+```{r demonstrate success}
+head(unemployment)
+```
+
 
 ## (5 points) Part-3: Conduct an EDA of the data and comment on what you see. 
 
@@ -76,7 +101,19 @@ Use the public API to download the CDC COVID-19 data and store in a useful dataf
 - Should be in a format that can be used for time series modeling;  
 - Should have appropriate time indexes (and possibly keys) set; but, 
 - At this point, should not have derivative features mutated onto the data frame; nor, 
-- Should it be aggregated or summarized. 
+- Should it be aggregated or summarized.
+
+```{r Download data}
+covid_df <- read.socrata("https://data.cdc.gov/resource/pwn4-m3yp.json")
+```
+
+```{r coerce data into a tsibble}
+columns_to_select <- c(1,2,5,6,7,8)
+covid_df$date_updated <- ymd(covid_df$date_updated)
+covid_df <- covid_df %>% mutate_at(c(5,6,7,8), as.numeric)
+covid_ts <- covid_df[columns_to_select] %>% as_tsibble(key = 'state', index = 'date_updated')
+```
+
 
 ## (5 points) Part-2: Pick a State and Produce a Model
 
@@ -86,6 +123,18 @@ Use the public API to download the CDC COVID-19 data and store in a useful dataf
   - Conducting a full EDA and description of the data that you observe 
   - Estimating a model (either AR or MA) that you believe is appropriate after conducting your EDA
   - Evaluating the model performance through diagnostic plots 
+
+```{r plot data}
+
+covid_MT <- covid_ts %>% filter(state == "MT")
+
+
+par(mfrow=c(2,2))
+plot(covid_MT, xlab="t", ylab="Xt", col="cornflowerblue", main="Time Series")
+acf(covid_MT, col="darkorange2", main="ACF")
+pacf(covid_MT, col="gold3", main="PACF")
+```
+
 
 ## (5 points) Part-3: Produce a Nationwide Model
 
