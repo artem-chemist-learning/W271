@@ -22,6 +22,33 @@ library(blsR)
 
 if(!"RSocrata"%in%rownames(installed.packages())) {install.packages("RSocrata")}
 library(RSocrata)
+
+
+if(!"zoo"%in%rownames(installed.packages())) {install.packages("zoo")}
+library(zoo)
+
+if(!"fable"%in%rownames(installed.packages())) {install.packages("fable")}
+library(fable)
+
+if(!"tseries"%in%rownames(installed.packages())) {install.packages("tseries")}
+library(tseries)
+
+if(!"plyr"%in%rownames(installed.packages())) {install.packages("plyr")}
+library(plyr)
+if(!"dplyr"%in%rownames(installed.packages())) {install.packages("dplyr")}
+library(dplyr)
+
+if(!"ggplot2"%in%rownames(installed.packages())) {install.packages("ggplot2")}
+library(ggplot2)
+if(!"ggthemes"%in%rownames(installed.packages())) {install.packages("ggthemes")}
+library(ggthemes)
+if(!"scales"%in%rownames(installed.packages())) {install.packages("scales")}
+library(scales)
+if(!"gridExtra"%in%rownames(installed.packages())) {install.packages("gridExtra")}
+library(gridExtra)
+
+
+
 ```
 
 ```{r set themes}
@@ -128,13 +155,45 @@ covid_ts <- covid_df[columns_to_select] %>% as_tsibble(key = 'state', index = 'd
 
 covid_MT <- covid_ts %>% filter(state == "MT")
 
+#par(mfrow=c(3,1))
+plot(covid_MT$tot_cases, xlab="t", ylab="Xt", col="cornflowerblue", main="Time Series")
+acf(covid_MT$tot_cases, col="darkorange2", main="ACF")
+pacf(covid_MT$tot_cases, col="gold3", main="PACF")
+covid_MT %>% gg_lag(tot_cases, lag = 1:9, geom = "point", color = 1)
+```
+```{r ARIMA model selection}
 
-par(mfrow=c(2,2))
-plot(covid_MT, xlab="t", ylab="Xt", col="cornflowerblue", main="Time Series")
-acf(covid_MT, col="darkorange2", main="ACF")
-pacf(covid_MT, col="gold3", main="PACF")
+model.bic<-covid_MT %>%
+model(ARIMA(tot_cases ~ 1 + pdq(1:10,1:2,1:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F))
+model.bic %>%
+report()
+```
+```{r ARIMA model residuals}
+
+model.bic %>%
+augment() %>%
+ACF(.resid) %>%
+autoplot()
+```
+> The residuals do not look like random white noise. There appers to be a pattern where residuals from the same year tend to  have the same sign, i.e. yearly pattern. More complex model might be able to improve fit.
+
+```{r}
+
+model_seasonal<-covid_MT %>%
+model(ARIMA(tot_cases ~ 1 + pdq(1:10,1:2,1:10) + PDQ(0:10, 0:2, 0:10, period = "1 month"), ic="bic", stepwise=F, greedy=F))
+
+model_seasonal %>%
+report()
+
+
 ```
 
+```{r}
+arima_seas %>%
+augment() %>%
+ACF(.resid) %>%
+autoplot()
+```
 
 ## (5 points) Part-3: Produce a Nationwide Model
 
