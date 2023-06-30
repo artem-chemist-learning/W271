@@ -38,8 +38,6 @@ library(plyr)
 if(!"dplyr"%in%rownames(installed.packages())) {install.packages("dplyr")}
 library(dplyr)
 
-if(!"ggplot2"%in%rownames(installed.packages())) {install.packages("ggplot2")}
-library(ggplot2)
 if(!"ggthemes"%in%rownames(installed.packages())) {install.packages("ggthemes")}
 library(ggthemes)
 if(!"scales"%in%rownames(installed.packages())) {install.packages("scales")}
@@ -65,6 +63,7 @@ You did work in a previous homework to produce a data pipeline that pulled the u
 ## (1 point) Part-1: Why is the distinction important? 
 
 Why is it important to know whether a process is a $AR$ or an $MA$ (or a combination of the two) process? What changes in the ways that you would talk about the process, what changes in the ways that you would fit a model to the process, and what changes with how you would produce a forecast for this process?
+> Knowing what model fits the time-series better will allow us to select the model that is more likely to make valid predicitons. Autoregressive mofdels imply that there is a strong influence of one day over another, while moving average models assume that there are random shocks that happen independently. Therefore, AR model will take into account shocks that go beyond its order p, while MA has no memnory whatsoever about what happened beyonfd the lag of it order q. Producing forecast for AR(p) model we would use a linear regression and last p values, while forecasting with MA(q) model we would use the last q shocks.
 
 ## (1 point) Part-2: Pull in (and clean up) your data pipeline. 
 
@@ -75,9 +74,12 @@ In the previous homework, you built a data pipeline to draw data from the BLS. W
 
 
 ```{r pull unemployment data, warning = FALSE}
+# Generate a list of timeseries we would like to obtain
 series_ids <- list(uer.total ="LNS14000000", uer.men ="LNS14000001", uer.women = 'LNS14000002')
+
+# API call to retrieve the data
 uer_series <- get_n_series_table(series_ids,
-                                 '913c5fe448924ea584e043f736c95080',
+                                 '913c5fe448924ea584e043f736c95080', # My personal API key
                                  start_year = 2000,
                                  end_year = 2023)
 ```
