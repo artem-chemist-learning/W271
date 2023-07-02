@@ -152,7 +152,7 @@ g2<-overall_ts %>% filter(time_index < ym('2019 Dec')) %>%
 
 grid.arrange(g1,g2,nrow=1)
 ```
-> Focusing on detrended series and removing once-in-a-lifetime anomalie, we can see that ACF plot decays quickly, loosing signoficance after lag 11. This is indicative of an MA process. At the same time, PACF plot is consistently significant up to lag 6. Pike at lag 12 may or may not be significant.
+> Focusing on detrended series, we can see that ACF plot decays quickly, loosing signoficance after lag 11. This is not consistent with a pure AR process that should show exponential decay in ACF plot. Therefore, based on ACF plot, we might conclude  MA(11) model. At the same time, PACF plot is consistently significant up to lag 6, with a negative spike at lag 12. This is not consistent with a pure MA process that should have oscillations in PACF plot and based on ACF plot we might conclude AR(6), possibly up to AR(12) process. 
 
 ## (1 point) Part-4: Make a Call 
 
@@ -201,7 +201,7 @@ Box.test(resid.ts, lag = 1, type = "Ljung-Box")
 ```
 > The test fails to reject the null hypothesis, therefore we do not have statistical evidence against random distribution of the residuals of this model.
 
-> The selected model, therefore, is ARIMA (1,1,1) with coefficients autoregressive coefficient -0.7277, movina average coefficeint 0.8019 and a constant term (average) of -0.0018. I.e. after one level of differencing, in th eresulting autoregressive model the predicted value will depend on the lag 1 value with coeff -0.7277 and on the lag error with coeff -0.0018
+> The selected model, therefore, is ARIMA (1,1,1) with coefficients autoregressive coefficient -0.7277, moving average coefficeint  and a constant term (average) of -0.0018. I.e. after one level of differencing, in the resulting autoregressive model the predicted value will depend on the lag 1 value with coeff -0.7277, lag 1 error with coeff 0.8019, and the average of the model is almoset excatly zero.
 
 ```{r alternative models residuals, warning=FALSE, results='hide'}
 # Obtain residuals ACF plot for selected model
@@ -210,19 +210,19 @@ arima1_1_1 <- arima(dat$value, order = c(1,1,1), include.mean = T)
 plot111 <- arima1_1_1 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() +
   coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "ACF", title = "1.1.1")
 
-# Obtain residuals plot for selected model
+# Obtain residuals plot for alternative ARIMA(1,1,2)
 dat <- unemployment %>% filter(name == "overall")
 arima1_1_2 <- arima(dat$value, order = c(1,1,2), include.mean = T)
 plot112 <- arima1_1_2 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + 
   coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "", title = "1.1.2")
 
-# Obtain residuals plot for selected model
+# Obtain residuals plot for for alternative ARIMA(2,1,2)
 dat <- unemployment %>% filter(name == "overall")
 arima2_1_2 <- arima(dat$value, order = c(2,1,2), include.mean = T)
 plot212 <- arima2_1_2 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + 
   coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "", title = "2.1.2")
 
-# Obtain residuals plot for selected model
+# Obtain residuals plot for random walk
 dat <- unemployment %>% filter(name == "overall")
 arima0_1_0 <- arima(dat$value, order = c(0,1,0), include.mean = T)
 plot010 <- arima0_1_0 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + 
@@ -272,7 +272,7 @@ covid_ts <- covid_df[columns_to_select] %>% as_tsibble(key = 'state', index = 'd
   - Evaluating the model performance through diagnostic plots 
 
 ```{r plot data}
-
+# Let's pick Montana, home of the Glacier NP
 covid_MT <- covid_ts %>% filter(state == "MT")
 
 #par(mfrow=c(3,1))
@@ -281,6 +281,7 @@ acf(covid_MT$tot_cases, col="darkorange2", main="ACF")
 pacf(covid_MT$tot_cases, col="gold3", main="PACF")
 covid_MT %>% gg_lag(tot_cases, lag = 1:9, geom = "point", color = 1)
 ```
+
 ```{r ARIMA model selection}
 
 model.bic<-covid_MT %>%
