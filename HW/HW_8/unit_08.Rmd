@@ -3,7 +3,7 @@ title: "W271 Assignment 8"
 output: pdf_document
 ---
 
-```{r load packages, message=FALSE, warning=FALSE}
+```{r load packages, message=FALSE, warning=FALSE, echo = FALSE}
 library(tidyverse)
 library(magrittr)
 library(patchwork)
@@ -45,7 +45,7 @@ library(scales)
 if(!"gridExtra"%in%rownames(installed.packages())) {install.packages("gridExtra")}
 library(gridExtra)
 
-
+library(cowplot)
 
 ```
 
@@ -75,20 +75,33 @@ In the previous homework, you built a data pipeline to draw data from the BLS. W
 
 ```{r pull unemployment data, warning = FALSE}
 # Generate a list of timeseries we would like to obtain
-series_ids <- list(uer.total ="LNS14000000", uer.men ="LNS14000001", uer.women = 'LNS14000002')
+series_ids <- list(uer.total ="LNS14000000", 
+                   uer.men ="LNS14000001", 
+                   uer.women = 'LNS14000002')
 
 # API call to retrieve the data
 uer_series <- get_n_series_table(series_ids,
-                                 '913c5fe448924ea584e043f736c95080', # My personal API key
+                                 '913c5fe448924ea584e043f736c95080',
                                  start_year = 2000,
                                  end_year = 2023)
 ```
 
 ```{r tidy unemployment data}
+# Generate time period variable from the text column for month
 uer_series$period <- as.integer(str_sub(uer_series$period, 2, 3))
+
+# Set descriptive names
 names(uer_series) <- c("year", "month", "overall", "male", "female")
-unemployment <- pivot_longer(uer_series, cols = 3:5, names_to = "name", values_to = "value")
-unemployment$time_index <- yearmonth(paste(unemployment$year, unemployment$month))
+
+# Produce tydiverse-friendly long form of the data frame
+unemployment <- pivot_longer(uer_series, cols = 3:5, 
+                             names_to = "name", 
+                             values_to = "value")
+
+# Generate timeindex
+unemployment$time_index<-yearmonth(paste(unemployment$year, unemployment$month))
+
+unemployment <- as_tsibble(unemployment[3:5], key = name, index = time_index)
 ```
 
 
@@ -97,14 +110,54 @@ head(unemployment)
 ```
 
 
+
 ## (5 points) Part-3: Conduct an EDA of the data and comment on what you see. 
 
 We have presented four **core** plots that are a part of the EDA for time-serires data. Produce each of these plots, and comment on what you see.
 
+```{r TS, ACF and PACF plots}
+TS_plot <- unemployment %>% filter (name == 'overall') %>% autoplot()
+ACF_plot <- unemployment %>% filter(name == 'overall') %>% ACF() %>% autoplot()
+PACF_plot <- unemployment %>% filter(name == 'overall') %>% PACF() %>% autoplot()
+plot_grid(TS_plot, ACF_plot, PACF_plot, align = "v", nrow = 4, rel_heights = c(2, 2, 3), scale = c(1,1,1))
+```
+``` {r lag plot}
+unemployment %>% filter(name == 'overall') %>%  gg_lag(value, lag = 1:9, geom = "point", color = 1)
+```
+
+> I assume that the conclusions about overall unemployment can be extrapolated to gender-specific data, therefore I focus on overall unemployment here. From the look of the series it is obvious that expectation of the series is not constant, i.e. the series os not stationary. This is also reflected on the ACF plot that has many non-zero lags and only gradual decrease in significance. That might mean an AR component in the series, but in this case is more likely is due to strong trend. PACF plot also exhibit strong correlation with lag 1, but no oscilatory beheviour typical for MA model.
+
+
+```{r detrending, warning=FALSE}
+overall_ts <- unemployment %>% filter(name == "overall")
+overall_ts <- mutate(overall_ts, diff = difference(value, lag=1))
+overall_ts <- overall_ts[3:4]
+
+short <- overall_ts %>% filter(time_index < ym('2019 Dec')) %>% 
+  ggplot() + aes(x = time_index, y = diff) + geom_line()
+
+full <- overall_ts %>% ggplot() + aes(x = time_index, y = diff) + geom_line()
+
+grid.arrange(full,short,nrow=1)
+```
+
+> Differenceing yields an almost stationary series, but a huge spike at the beginning of the 2020 introduces perturbation that is not charachteristic of the series and can skew predictions.
+
+```{r ACF and PACF for detrended series, warning=FALSE}
+g1<-overall_ts %>% filter(time_index < ym('2019 Dec')) %>% 
+  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "ACF")
+
+g2<-overall_ts %>% filter(time_index < ym('2019 Dec')) %>%
+  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "PACF")
+
+grid.arrange(g1,g2,nrow=1)
+```
+> Focusing on detrended series and removing once-in-a-lifetime anomalie, we can see that ACF plot decays quickly, loosing signoficance after lag 11. This is indicative of an MA process. At the same time, PACF plot is consistently significant up to lag 6. Pike at lag 12 may or may not be significant.
+
 ## (1 point) Part-4: Make a Call 
 
 Based on what you have plotted and written down in the previous section, would you say that the unemployment rate is an $AR$, $MA$ or a mix of the two?
-
+> Form the analysis above its is difficult to be completely certain what dgrees of AR and MA would be the most appropriate. It is likely to be a mix of the two, and detrending as also nessesary. 
 ## (6 points total) Part-5:  Estimate a model 
 
 Report the best-fitting parameters from the best-fitting model, and then describe what your model is telling you. In this description, you should: 
@@ -114,6 +167,71 @@ Report the best-fitting parameters from the best-fitting model, and then describ
 - (2 points) Interpret the coefficients of the model that you have estimated. 
 - (2 points) Produce and interpret the model diagnostic plots to evaluate how well your best-fitting model is performing.
 - (1 (optional) point) If, after fitting the models, and interpreting their diagnostics plots, you determine that the model is doing poorly -- for example, you notice that the residuals are not following a white-noise process -- then, make a note of the initial model that you fitted then propose a change to the data or the model in order to make the model fit better. If you take this action, you should focus your interpretation of the model's coefficients on the model that you think does the best job, which might be the model after some form of variable transformation. 
+
+> Becasue diagnostic plots did not yield a definitive indication of the degree of MA amd AR component of the models, we will perform a grid search of various combinations of AR, MA and detrending parameters. We will use BIC criterion as it is more stringent than AIC. We will be fitting a large number of models, therefore stringent criterion is needed to avoid unreliable conclusions.
+
+```{r}
+# Generate a set of models AR(1)-AR(10) and MA(1)-MA(10) 
+# with first and second degree of differencing. 
+# Select the model with the lowest BIC
+model.bic<-unemployment %>% filter(name == "overall") %>%
+model(ARIMA(value ~ 1 + pdq(1:10,1:2,1:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F))
+
+# Report the winning model parameters
+model.bic %>% report()
+```
+
+> With the winning ARIMA model (1,1,1) in hand we will check its residuals to make sure that the residuals are as close to white noise as possible.
+
+
+```{r check residuals}
+# Obtain the winning model as a separate instance of Arima class
+dat <- unemployment %>% filter(name == "overall")
+arima.model <- arima(dat$value, order = c(1,1,1), include.mean = T)
+
+# Visualize ACF plot of its residuals
+arima.model %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + coord_cartesian(xlim = c(1, 20))
+```
+
+> The residuals do not appear to be a white noise, but we will use Ljung Box test to investigate if they are indeed not random.
+
+``` {r Ljung-Box test}
+resid.ts <- as.ts(arima.model %>% residuals())
+Box.test(resid.ts, lag = 1, type = "Ljung-Box")
+```
+> The test fails to reject the null hypothesis, therefore we do not have statistical evidence against random distribution of the residuals of this model.
+
+> The selected model, therefore, is ARIMA (1,1,1) with coefficients autoregressive coefficient -0.7277, movina average coefficeint 0.8019 and a constant term (average) of -0.0018. I.e. after one level of differencing, in th eresulting autoregressive model the predicted value will depend on the lag 1 value with coeff -0.7277 and on the lag error with coeff -0.0018
+
+```{r alternative models residuals, warning=FALSE, results='hide'}
+# Obtain residuals ACF plot for selected model
+dat <- unemployment %>% filter(name == "overall")
+arima1_1_1 <- arima(dat$value, order = c(1,1,1), include.mean = T)
+plot111 <- arima1_1_1 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() +
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "ACF", title = "1.1.1")
+
+# Obtain residuals plot for selected model
+dat <- unemployment %>% filter(name == "overall")
+arima1_1_2 <- arima(dat$value, order = c(1,1,2), include.mean = T)
+plot112 <- arima1_1_2 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + 
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "", title = "1.1.2")
+
+# Obtain residuals plot for selected model
+dat <- unemployment %>% filter(name == "overall")
+arima2_1_2 <- arima(dat$value, order = c(2,1,2), include.mean = T)
+plot212 <- arima2_1_2 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + 
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "", title = "2.1.2")
+
+# Obtain residuals plot for selected model
+dat <- unemployment %>% filter(name == "overall")
+arima0_1_0 <- arima(dat$value, order = c(0,1,0), include.mean = T)
+plot010 <- arima0_1_0 %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + 
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "", title = "0.1.0")
+
+grid.arrange(plot111, plot112, plot212, plot010, nrow=1)
+```
+
+>Interestingly, simple random walk model ARIMA (0,1,0) has lower BIC than the selected model (583.87 vs 591.87), but showes clear autoregressive features in its residuals (see plot above). Also, ARIMA (1,1,2) (BIC 593.54) visually has residuals closer to white noise and ARIMA (2,1,2) ACF plot has no significant lags at all, albiet at the expense of higher BIC. More detailed evaluations and testing of predictions would be needed to make the final judgement on the suitability of these models.
 
 # (14 Points Total) Question-2: COVID-19 
 
@@ -190,12 +308,6 @@ report()
 
 ```
 
-```{r}
-arima_seas %>%
-augment() %>%
-ACF(.resid) %>%
-autoplot()
-```
 
 ## (5 points) Part-3: Produce a Nationwide Model
 
