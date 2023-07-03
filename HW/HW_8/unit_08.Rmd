@@ -320,15 +320,19 @@ LBT <- Box.test(resid.ar3, lag = 1, type = "Ljung-Box")
   - Estimating a model (either AR or MA) that you believe is appropriate after conducting your EDA
   - Evaluating the model performance through diagnostic plots 
 
-``` {r aggregate}
+``` {r aggregate on the nation level}
+# I could not figure out how to aggregate on a tsibble
+# So will aggregate on dataframe
 
+# Subset the original df to make final ts smaller
 columns_to_select <- c(1,6)
-covid_all_df <- covid_df[columns_to_select]
+nation_df <- covid_df[columns_to_select]
 
-covid_all_df$update_date <- as.Date(covid_all_df$date_updated)
-covid_all_ts <- aggregate(covid_all_df["new_cases"], by=covid_all_df["update_date"], sum)
-covid_all_ts <- as_tsibble(covid_all_ts, index = update_date)
+# Aggregate on the dataframe
+nation_ts <- aggregate(nation_df["new_cases"], by = nation_df["date_updated"], sum)
 
+# Convert back to tsibble
+nation_ts <- as_tsibble(nation_ts, index = date_updated)
 ```
 
 
