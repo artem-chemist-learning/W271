@@ -542,7 +542,7 @@ Nation_AR3_plot | Nation_AR5_plot
 ```
 > The grid search yielded the lowest BIC for AR(2) model, however, residual ACF plot for AR3 model has a few strongly significant lags. AR(5) model that we infered from the analysis of ACF and PACF of de-seasoned series demonstrates a lot more random beheviour. Therefore we will move forward with the AR(5) model.
 
-## (www3 points) Part-4: Write a few paragraphs about this modeling task
+## (3 points) Part-4: Write a few paragraphs about this modeling task
 
 The nationwide model that you just produced contains much **more** data than went into your state-level model. Does this make it a better model? Why or why not? 
 
@@ -551,3 +551,11 @@ Without a requirement that you actually produce the model that you propose: If y
 This could be, for example, the nationwide model that you have fitted above. Or, you might propose some other forms of data aggregation before modeling, or model aggregation but not data aggregation. In writing about your strategy, justify choices that you are making. 
 
 Our goal with this question is to ask that you not only conduct the narrow technical work, but also that you do the higher-level reasoning about the technical work. We would like you to write in full paragraphs, rather than bullet points that address specific parts of the prompt above. 
+
+> Modeling nationwide data as a sum of state-level series almost certainly made the model less relevant. Montana is a reasonably populous state and the state-level model is sufficeintly powered, there is little benefit from including all these additional data points. Modelling Guam or other small localities might actually benefit from adding more data, but they matter little for the overall picture.
+
+> At the same time, different states have different policies and circumstance, so averaging over this diverse set of data reduces usefulness of the model. The picture of how pandemic progressed through the nation is granular and averaging over the whole nation blurs out this granularity, making predictions less relevant.
+
+> In ideal world, we would need to incorporate a lot more external factors into the model. Examples of  time-dependent factors include government mandated shutdowns and evolving attitude toward wearing masks. Time-independent factors might include population density that affects rate of transmission, and healthcare standards that affect how fast people recover etc. 
+
+> Making a (shaky) assumption that these factors are constant within the state, I would estimate independent models for each state and then used these 50+ time series as inputs into the nationwide model, regressing national new cases on the state-level new cases and state-level shocks. This would allow me to model missing information about those external factors without gathering additional data.
