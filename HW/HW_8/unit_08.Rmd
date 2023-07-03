@@ -288,13 +288,13 @@ covid_MT <- covid_MT%>% mutate(
 covid_MT %>% ggplot() +
   geom_line(aes(x = date_updated, y = montly_MA , colour = origin)) +
   geom_point(aes(x = date_updated, y = new_cases , colour = origin)) +
-  theme(legend.position = "none") + theme_minimal()
+  theme_minimal() +
+  theme(legend.position = "none")
 ```
 
 > Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unmsoothed weekly data, equivalent to what we would have, had we gotten the daily data form the source. 
 
-```{r plot data}
-
+```{r Montana EDA plots}
 
 covid_MT <- mutate(covid_MT, diff = difference(new_cases, lag=26))
 
@@ -357,7 +357,7 @@ nation_ts <- aggregate(nation_df["new_cases"], by = nation_df["date_updated"], s
 nation_ts <- as_tsibble(nation_ts, index = date_updated)
 ```
 
-```{r Moving average, warning=FALSE, fig.height=4, fig.width=8.5}
+```{r Moving average, warning=FALSE, fig.height=3, fig.width=8.5}
 # The data that we eneded up using is already aggregated by week
 # Therefore weekly moving average is pointless
 # Smoothing over 4-week periods (not exactly monthly, but close enough):
@@ -371,7 +371,7 @@ nation_ts <- nation_ts%>% mutate(
 nation_ts %>% ggplot() +
   geom_line(aes(x = date_updated, y = montly_MA , colour = origin)) +
   geom_point(aes(x = date_updated, y = new_cases , colour = origin)) +
-  theme(legend.position = "none") + theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 ```
 
 > Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unmsoothed weekly data, equivalent to what we would have, had we gotten the daily data form the source. 
