@@ -271,9 +271,31 @@ covid_ts <- covid_df[columns_to_select] %>% as_tsibble(key = 'state', index = 'd
   - Estimating a model (either AR or MA) that you believe is appropriate after conducting your EDA
   - Evaluating the model performance through diagnostic plots 
 
-```{r plot data}
+```{r Montana moving average, warning=FALSE, fig.height=4, fig.width=8.5}
 # Let's pick Montana, home of the Glacier NP
 covid_MT <- covid_ts %>% filter(state == "MT")
+
+# The data that we eneded up using is already aggregated by week
+# Therefore weekly moving average is pointless
+# Smoothing over 4-week periods (not exactly monthly, but close enough):
+
+# Produce new column with smoothed values
+covid_MT <- covid_MT%>% mutate(
+    `montly_MA` = slider::slide_dbl(new_cases, mean,
+    .before = 0, .after = 4, .complete = TRUE))
+
+# Generate a plot to show smoothing effect
+covid_MT %>% ggplot() +
+  geom_line(aes(x = date_updated, y = montly_MA , colour = origin)) +
+  geom_point(aes(x = date_updated, y = new_cases , colour = origin)) +
+  theme(legend.position = "none") + theme_minimal()
+```
+
+> Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unmsoothed weekly data, equivalent to what we would have, had we gotten the daily data form the source. 
+
+```{r plot data}
+
+
 covid_MT <- mutate(covid_MT, diff = difference(new_cases, lag=26))
 
 ts_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = new_cases) + geom_line()
