@@ -195,13 +195,13 @@ arima.model %>% residuals() %>% acf(plot = FALSE) %>% autoplot() + coord_cartesi
 
 > The residuals do not appear to be a white noise, but we will use Ljung Box test to investigate if they are indeed not random.
 
-``` {r Ljung-Box test}
+``` {r Ljung-Box Test arima111}
 resid.ts <- as.ts(arima.model %>% residuals())
 Box.test(resid.ts, lag = 1, type = "Ljung-Box")
 ```
 > The test fails to reject the null hypothesis, therefore we do not have statistical evidence against random distribution of the residuals of this model.
 
-> The selected model, therefore, is ARIMA (1,1,1) with coefficients autoregressive coefficient -0.7277, moving average coefficeint  and a constant term (average) of -0.0018. I.e. after one level of differencing, in the resulting autoregressive model the predicted value will depend on the lag 1 value with coeff -0.7277, lag 1 error with coeff 0.8019, and the average of the model is almoset excatly zero.
+> The selected model, therefore, is ARIMA (1,1,1) with coefficients autoregressive coefficient -0.7277, moving average coefficeint  and a constant term (average) of -0.0018. I.e. after one level of differencing, in the resulting autoregressive model the predicted value will depend on the lag 1 series with coeff -0.7277, lag 1 error with coeff 0.8019, and the average of the model is almoset excatly zero.
 
 ```{r alternative models residuals, warning=FALSE, results='hide'}
 # Obtain residuals ACF plot for selected model
@@ -274,40 +274,41 @@ covid_ts <- covid_df[columns_to_select] %>% as_tsibble(key = 'state', index = 'd
 ```{r plot data}
 # Let's pick Montana, home of the Glacier NP
 covid_MT <- covid_ts %>% filter(state == "MT")
+covid_MT <- mutate(covid_MT, diff = difference(new_cases, lag=26))
 
-#par(mfrow=c(3,1))
-plot(covid_MT$tot_cases, xlab="t", ylab="Xt", col="cornflowerblue", main="Time Series")
-acf(covid_MT$tot_cases, col="darkorange2", main="ACF")
-pacf(covid_MT$tot_cases, col="gold3", main="PACF")
-covid_MT %>% gg_lag(tot_cases, lag = 1:9, geom = "point", color = 1)
+ts_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = new_cases) + geom_line()
+
+ts_diff_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = diff) + geom_line()
+
+acf_plot<-covid_MT %>% 
+  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "ACF")
+
+pacf_plot<-covid_MT %>% 
+  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "PACF")
+
+grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
 ```
 
 ```{r ARIMA model selection}
-
 model.bic<-covid_MT %>%
-model(ARIMA(tot_cases ~ 1 + pdq(1:10,1:2,1:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F))
+model(ARIMA(diff~ 1 + pdq(0:10,0:2,0:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F))
 model.bic %>%
 report()
 ```
 ```{r ARIMA model residuals}
-
-model.bic %>%
-augment() %>%
-ACF(.resid) %>%
-autoplot()
+arima_seasonal <- arima(covid_MT$diff, order = c(3,0,0), seasonal = c(0, 0, 0), include.mean = T)
+plot_seasonal <- arima_seasonal %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(3) model ACF plot")
 ```
-> The residuals do not look like random white noise. There appers to be a pattern where residuals from the same year tend to  have the same sign, i.e. yearly pattern. More complex model might be able to improve fit.
 
-```{r}
-
-model_seasonal<-covid_MT %>%
-model(ARIMA(tot_cases ~ 1 + pdq(1:10,1:2,1:10) + PDQ(0:10, 0:2, 0:10, period = "1 month"), ic="bic", stepwise=F, greedy=F))
-
-model_seasonal %>%
-report()
-
-
+```{r ARIMA model plot, fig.height=3, fig.width=4, echo=FALSE}
+plot_seasonal
 ```
+``` {r Ljung-Box test}
+resid.ar3 <- as.ts(arima_seasonal %>% residuals())
+LBT <- Box.test(resid.ar3, lag = 1, type = "Ljung-Box")
+```
+> The residuals look like random white noise. Ljung-Box test fials to reject hypothesis that the residuals are random (p value `r round(LBT$p.value, digits = 3)`)
 
 
 ## (5 points) Part-3: Produce a Nationwide Model
@@ -319,7 +320,35 @@ report()
   - Estimating a model (either AR or MA) that you believe is appropriate after conducting your EDA
   - Evaluating the model performance through diagnostic plots 
 
-## (3 points) Part-4: Write a few paragraphs about this modeling task
+``` {r aggregate}
+
+columns_to_select <- c(1,6)
+covid_all_df <- covid_df[columns_to_select]
+
+covid_all_df$update_date <- as.Date(covid_all_df$date_updated)
+covid_all_ts <- aggregate(covid_all_df["new_cases"], by=covid_all_df["update_date"], sum)
+covid_all_ts <- as_tsibble(covid_all_ts, index = update_date)
+
+```
+
+
+```{r}
+
+covid_overall<- mutate(covid_all_ts, diff = difference(new_cases, lag=24))
+
+ts_plot <- covid_overall %>% ggplot() + aes(x = update_date, y = new_cases) + geom_line()
+
+ts_diff_plot <- covid_overall %>% ggplot() + aes(x = update_date, y = diff) + geom_line()
+
+acf_plot<-covid_overall %>% 
+  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "ACF")
+
+pacf_plot<-covid_overall %>% 
+  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "PACF")
+
+grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
+```
+## (www3 points) Part-4: Write a few paragraphs about this modeling task
 
 The nationwide model that you just produced contains much **more** data than went into your state-level model. Does this make it a better model? Why or why not? 
 
