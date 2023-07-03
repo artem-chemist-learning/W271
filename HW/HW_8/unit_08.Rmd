@@ -294,44 +294,144 @@ covid_MT %>% ggplot() +
 
 > Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unmsoothed weekly data, equivalent to what we would have, had we gotten the daily data form the source. 
 
-```{r Montana EDA plots}
+> We first conduct EDA on the timeseries 
 
-covid_MT <- mutate(covid_MT, diff = difference(new_cases, lag=26))
+```{r Montana EDA plots, warning=FALSE}
+# Create a differenced version of the Montana TS.
+# covid_MT <- mutate(covid_MT, diff = difference(new_cases, lag=26))
 
-ts_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = new_cases) + geom_line()
+#Generate TS plot
+ts_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = new_cases) + 
+  geom_line() + labs (x = "", y = "New cases")
 
-ts_diff_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = diff) + geom_line()
+#Generate differenced TS plot
+ts_diff_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = diff) + 
+  geom_line() + labs (x = "", y = "1 week diff")
 
+# Create an ACF plot for the differenced timeseries
 acf_plot<-covid_MT %>% 
-  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "ACF")
+  ACF(new_cases, type="correlation") %>% autoplot()  + labs (x = "lag", y = "ACF")
 
+# Create an PACF plot for the differenced timeseries
 pacf_plot<-covid_MT %>% 
-  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "PACF")
+  ACF(new_cases, type="partial") %>% autoplot() + labs (x = "lag", y = "PACF")
 
-grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
+grid.arrange(ts_plot , acf_plot, pacf_plot, nrow=1)
 ```
+> It is clear that the timeseries is not stationary, as mean of the series has lots of spikes and valeys and does not stay constant. Therefore, application of ARIMA family models is questionable, but we will perform a grid search of the best model anyway.
+
 
 ```{r ARIMA model selection}
 model.bic<-covid_MT %>%
-model(ARIMA(diff~ 1 + pdq(0:10,0:2,0:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F))
-model.bic %>%
-report()
+model(ARIMA(new_cases~ 1 + pdq(0:10,0:2,0:10) + PDQ(0,0,0), ic="bic", stepwise=FALSE))
+
+model.bic %>% report()
 ```
-```{r ARIMA model residuals}
-MT_AR3 <- arima(covid_MT$diff, order = c(3,0,0), seasonal = c(0, 0, 0), include.mean = T)
-MT_AR3_plot <- MT_AR3 %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
-  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(3) model ACF plot")
+
+> Grid search finds the lowes BIC value for ARMA(1.2) model with BIC `r glance(model.bic)$BIC`
+>Next we will examin the residuals of the resultign ARMA model
+
+```{r ARMA model residuals}
+# Recreate model to hgave access to residuals
+MT_original <- arima(covid_MT$new_cases,
+                     order = c(1,0,2), 
+                     seasonal = c(0, 0, 0),
+                     include.mean = T)
+
+#Make a plot of residuals ACF
+MT_original_plot <- MT_original %>% residuals() %>% 
+  acf(plot = FALSE, na.action = na.pass) %>% 
+  autoplot() +  coord_cartesian(xlim = c(1, 15)) + 
+  labs(x = "lag", y = "Resid ACF", title = "ACF for ARMA(1.2) of origina timeseries")
 ```
 
 ```{r ARIMA model plot, fig.height=3, fig.width=4, echo=FALSE}
-MT_AR3_plot
+MT_original_plot
 ```
 ``` {r Ljung-Box test}
-resid.ar3 <- as.ts(MT_AR3 %>% residuals())
+resid.ar3 <- as.ts(MT_original %>% residuals())
 LBT <- Box.test(resid.ar3, lag = 1, type = "Ljung-Box")
 ```
 > The residuals look like random white noise. Ljung-Box test fials to reject hypothesis that the residuals are random (p value `r round(LBT$p.value, digits = 3)`)
+> Despite reasonably good fit with ARMA(1,2), we will indestigate a detrending in attempt to produce a more stationary timeseries.
 
+```{r Montana EDA plots w differencing, warning=FALSE}
+# Create a differenced version of the Montana TS.
+covid_MT <- mutate(covid_MT, diff = difference(new_cases, lag=1))
+
+#Generate differenced TS plot
+ts_diff_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = diff) + 
+  geom_line() + labs (x = "", y = "1 week diff")
+
+# Create an ACF plot for the differenced timeseries
+acf_plot<-covid_MT %>% 
+  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "1 week diff ACF")
+
+# Create an PACF plot for the differenced timeseries
+pacf_plot<-covid_MT %>% 
+  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "1 week diff PACF")
+
+grid.arrange(ts_diff_plot, acf_plot, pacf_plot, nrow=1)
+```
+> The mean of the differenced series is now close to 0, but the variance is clearly not constant throughout the range. Additionally, ACF plot has strong oscillations, indicating seasonality.
+Seasonality is unlikely to be caused by the actual astronomical season, but probably by an interaction of virus spread, consequent political descisions to shut downs that in turn causes new wave of virus spread. After a few experiments, we found that de-seasoniong by differencing with lag 26 provides a more stationary timeseries
+
+```{r ARIMA model selection for destrended TS, echo = FALSE}
+MT_detrended  <- covid_MT %>%
+model(ARIMA(diff~ 1 + pdq(0:10,0:2,0:10) + PDQ(0,0,0), ic="bic", stepwise=FALSE))
+```
+
+```{r Montana EDA plots with de-seasoning, warning=FALSE}
+# Create a differenced version of the Montana TS.
+covid_MT <- mutate(covid_MT, diff = difference(new_cases, lag=26))
+
+#Generate differenced TS plot
+ts_diff_plot <- covid_MT %>% ggplot() + aes(x = date_updated, y = diff) + 
+  geom_line() + labs (x = "", y = "De-seasoned TS")
+
+# Create an ACF plot for the differenced timeseries
+acf_plot<-covid_MT %>% 
+  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "26 week diff ACF")
+
+# Create an PACF plot for the differenced timeseries
+pacf_plot<-covid_MT %>% 
+  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "26 week diff PACF")
+
+grid.arrange(ts_diff_plot, acf_plot, pacf_plot, nrow=1)
+```
+
+> After de-seasoning, the timeseries becomes more stationary, with mean around 0 and standard deviation without much change. Characteristic decay of ACF fanction indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it apperas that it might be an AR(3) process, becasue 3'd lag is the last one strongly significant on PACF plot. To confirm these observations we will perform a grid search using BIC to evaluate goodness of fit.
+
+```{r ARIMA model selection for deseasoned TS}
+MT_deseasoned <- covid_MT %>%
+model(ARIMA(diff~ 1 + pdq(0:10,0:2,0:10) + PDQ(0,0,0), ic="bic", stepwise=FALSE))
+
+MT_deseasoned  %>% report()
+```
+
+
+> Grid search finds the lowes BIC value for AR(3) model with BIC `r round(glance(MT_deseasoned )$BIC, digits = 1)`, a dramatic improvement over best ARMA (1.2) model for original TS (BIC `r round(glance(model.bic)$BIC, digits = 1)`) or simply differenced timeseries (BIC `r round(glance(MT_detrended)$BIC, digits = 1)`) 
+
+>Next we will examin the residuals of the resulting AR model
+
+```{r Montana model residuals evaluation}
+# Fit the model one more time to have access to residuals
+MT_AR3 <- arima(covid_MT$diff, order = c(3,0,0), seasonal = c(0, 0, 0), include.mean = T)
+
+# Plot ACF for residuals
+MT_AR3_plot <- MT_AR3 %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "ACF AR(3) residuals for de-seasoned MT series")
+
+#Perform LB test on residuals
+resid.mtar3 <- as.ts(MT_AR3 %>% residuals())
+LBT_deseasoned <- Box.test(resid.mtar3, lag = 1, type = "Ljung-Box")
+```
+
+```{r Montana_res_plot, fig.height=3, fig.width=8.5, echo=FALSE}
+MT_AR3_plot
+```
+
+> The residuals resemble white noise. Ljung-Box test fials to reject hypothesis that the residuals are random (p value `r round(LBT_deseasoned$p.value, digits = 3)`). Therefore we believe that the best model is a simple AR(3) after deseasoning of the timeseries with lag 26.
 
 ## (5 points) Part-3: Produce a Nationwide Model
 
@@ -341,7 +441,7 @@ LBT <- Box.test(resid.ar3, lag = 1, type = "Ljung-Box")
   - Conducting a full EDA and description of the data that you observe 
   - Estimating a model (either AR or MA) that you believe is appropriate after conducting your EDA
   - Evaluating the model performance through diagnostic plots 
-
+  
 ``` {r aggregate on the nation level}
 # I could not figure out how to aggregate on a tsibble
 # So will aggregate on dataframe
@@ -376,7 +476,7 @@ nation_ts %>% ggplot() +
 
 > Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unmsoothed weekly data, equivalent to what we would have, had we gotten the daily data form the source. 
 
->We know from previous analysis that the series requires de-trending. Below we plot the series itself, along side with the differenced series, ACF and PACF of the differenced series
+>We will follow the same pattern on nationwide analysis as we developed for Montana case. Below we plot the series itself, along side with the differenced series, ACF and PACF of the differenced series
 
 ```{r EDA of the nationwide data, warning=FALSE}
 nation_ts<- mutate(nation_ts, diff = difference(new_cases, lag=1))
@@ -388,16 +488,16 @@ ts_diff_plot <- nation_ts %>% ggplot() + aes(x = date_updated, y = diff) +
   geom_line()   + labs (x = "", y = "1 week diff")
 
 acf_plot<-nation_ts %>% 
-  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "ACF")
+  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "1 week diff ACF")
 
 pacf_plot<-nation_ts %>% 
-  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "PACF")
+  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "1 week diff PACF")
 
 grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
 ```
 
 > Even after differencing the series remains non-stationary, with variance strongly dependent on time. Additionally, ACF resembles dampened oscillations, indicating underlying seasonality. 
-It was not clear what would cause the seasonality, but running a few experiemtns we can find that de-trending with lag around half a year significantly reduces these artefacts. It is unlikely to be caused by the actual season, but probably a combinaton of how fast the virus spreads and how fast political descisions on shut down are made.
+It was not clear what would cause the seasonality, but running a few experiemtns we can find that de-trending with lag around half a year significantly reduces these artefacts. This comes as  no rurprise after findings in Montana data.
 
 ```{r Nationwide data de-seasoned, warning=FALSE}
 nation_ts<- mutate(nation_ts, diff = difference(new_cases, lag=30))
@@ -416,7 +516,7 @@ pacf_plot<-nation_ts %>%
 
 grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
 ```
-> After de-seasoning, the timeseries appears to be closer to stationary, with mean around 0 and standard deviation relatievely stable. Characteristic decay of ACF fanction indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it apperas that it might be an AR(5) process, becasue 5'th lag is the last one significant on PACF plot. It is worth noting that ACF plot still has significant oscilations. More complex de-trending procedures than just differencing might be required. 
+> Moreexperiments showed that for nationwide data lag 30 is more suitable. After de-seasoning, the timeseries appears to be closer to stationary, with mean around 0 and standard deviation relatievely stable. Characteristic decay of ACF fanction indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it apperas that it might be an AR(5) process, becasue 5'th lag is the last one significant on PACF plot. It is worth noting that ACF plot still has significant oscilations. More complex de-trending procedures than just differencing might be required. 
 
 > Next, we will perform a grid search using BIC to evaluate goodness of fit.
 
@@ -430,11 +530,11 @@ report()
 ```{r National model residuals}
 Nation_AR3 <- arima(nation_ts$diff, order = c(3,0,0), seasonal = c(0, 0, 0), include.mean = T)
 Nation_AR3_plot <- Nation_AR3 %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
-  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(3) model ACF on de-seasoned series")
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(3) model resid ACF on de-seasoned series")
 
 Nation_AR5 <- arima(nation_ts$diff, order = c(5,0,0), seasonal = c(0, 0, 0), include.mean = T)
 Nation_AR5_plot <- Nation_AR5 %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
-  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(5) model ACF on de-seasoned series")
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(5) model resid ACF on de-seasoned series")
 ```
 
 ```{r National model residuals plot, fig.height=3, fig.width=8.5, echo=FALSE}
