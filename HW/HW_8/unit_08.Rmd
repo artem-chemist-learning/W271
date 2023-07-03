@@ -125,7 +125,7 @@ plot_grid(TS_plot, ACF_plot, PACF_plot, align = "v", nrow = 4, rel_heights = c(2
 unemployment %>% filter(name == 'overall') %>%  gg_lag(value, lag = 1:9, geom = "point", color = 1)
 ```
 
-> I assume that the conclusions about overall unemployment can be extrapolated to gender-specific data, therefore I focus on overall unemployment here. From the look of the series it is obvious that expectation of the series is not constant, i.e. the series os not stationary. This is also reflected on the ACF plot that has many non-zero lags and only gradual decrease in significance. That might mean an AR component in the series, but in this case is more likely is due to strong trend. PACF plot also exhibit strong correlation with lag 1, but no oscilatory beheviour typical for MA model.
+> I assume that the conclusions about overall unemployment can be extrapolated to gender-specific data, therefore I focus on overall unemployment here. From the look of the series it is obvious that expectation of the series is not constant, i.e. the series os not stationary. This is also reflected on the ACF plot that has many non-zero lags and only gradual decrease in significance. That might mean an AR component in the series, but in this case is more likely is due to strong trend. PACF plot also exhibit strong correlation with lag 1, but no osculatory behaviour typical for MA model.
 
 
 ```{r detrending, warning=FALSE}
@@ -400,7 +400,7 @@ pacf_plot<-covid_MT %>%
 grid.arrange(ts_diff_plot, acf_plot, pacf_plot, nrow=1)
 ```
 
-> After de-seasoning, the timeseries becomes more stationary, with mean around 0 and standard deviation without much change. Characteristic decay of ACF fanction indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it apperas that it might be an AR(3) process, becasue 3'd lag is the last one strongly significant on PACF plot. To confirm these observations we will perform a grid search using BIC to evaluate goodness of fit.
+> After de-seasoning, the time series becomes more stationary, with mean around 0 and standard deviation without much change. Characteristic decay of ACF function indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it appears that it might be an AR(3) process, because 3'd lag is the last one strongly significant on PACF plot. To confirm these observations we will perform a grid search using BIC to evaluate goodness of fit.
 
 ```{r ARIMA model selection for deseasoned TS}
 MT_deseasoned <- covid_MT %>%
@@ -474,7 +474,7 @@ nation_ts %>% ggplot() +
   theme_minimal() + theme(legend.position = "none")
 ```
 
-> Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unmsoothed weekly data, equivalent to what we would have, had we gotten the daily data form the source. 
+> Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unsmoothed weekly data, equivalent to what we would have, had we gotten the daily data form the source. 
 
 >We will follow the same pattern on nationwide analysis as we developed for Montana case. Below we plot the series itself, along side with the differenced series, ACF and PACF of the differenced series
 
@@ -496,8 +496,8 @@ pacf_plot<-nation_ts %>%
 grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
 ```
 
-> Even after differencing the series remains non-stationary, with variance strongly dependent on time. Additionally, ACF resembles dampened oscillations, indicating underlying seasonality. 
-It was not clear what would cause the seasonality, but running a few experiemtns we can find that de-trending with lag around half a year significantly reduces these artefacts. This comes as  no rurprise after findings in Montana data.
+ Even after differencing the series remains non-stationary, with variance strongly dependent on time. Additionally, ACF resembles dampened oscillations, indicating underlying seasonality. 
+It was not clear what would cause the seasonality, but running a few experiments we can find that de-trending with lag around half a year significantly reduces these artifacts. This comes as  no surprise after findings in Montana data.
 
 ```{r Nationwide data de-seasoned, warning=FALSE}
 nation_ts<- mutate(nation_ts, diff = difference(new_cases, lag=30))
@@ -516,7 +516,7 @@ pacf_plot<-nation_ts %>%
 
 grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
 ```
-> Moreexperiments showed that for nationwide data lag 30 is more suitable. After de-seasoning, the timeseries appears to be closer to stationary, with mean around 0 and standard deviation relatievely stable. Characteristic decay of ACF fanction indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it apperas that it might be an AR(5) process, becasue 5'th lag is the last one significant on PACF plot. It is worth noting that ACF plot still has significant oscilations. More complex de-trending procedures than just differencing might be required. 
+> Experiments on the aggregated series showed that for nationwide data lag 30 is more suitable. After de-seasoning, the timeseries appears to be closer to stationary, with mean around 0 and standard deviation relatively stable. Characteristic decay of ACF function indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it appears that it might be an AR(5) process, because 5'th lag is the last one significant on PACF plot. It is worth noting that ACF plot still has significant osculations. More complex de-trending procedures than just differencing might be required. 
 
 > Next, we will perform a grid search using BIC to evaluate goodness of fit.
 
@@ -540,7 +540,7 @@ Nation_AR5_plot <- Nation_AR5 %>% residuals() %>% acf(plot = FALSE, na.action = 
 ```{r National model residuals plot, fig.height=3, fig.width=8.5, echo=FALSE}
 Nation_AR3_plot | Nation_AR5_plot
 ```
-> The grid search yielded the lowest BIC for AR(2) model, however, residual ACF plot for AR3 model has a few strongly significant lags. AR(5) model that we infered from the analysis of ACF and PACF of de-seasoned series demonstrates a lot more random beheviour. Therefore we will move forward with the AR(5) model.
+> The grid search yielded the lowest BIC for AR(3) model, however, residual ACF plot for this model has a few strongly significant lags. ACF of residuals from AR(5) model that we infered from the analysis of ACF and PACF of de-seasoned series demonstrates a lot more random beheviour. Therefore we select the AR(5) model after de-seasoning with lag 30 as the final answer.
 
 ## (3 points) Part-4: Write a few paragraphs about this modeling task
 
@@ -552,7 +552,7 @@ This could be, for example, the nationwide model that you have fitted above. Or,
 
 Our goal with this question is to ask that you not only conduct the narrow technical work, but also that you do the higher-level reasoning about the technical work. We would like you to write in full paragraphs, rather than bullet points that address specific parts of the prompt above. 
 
-> Modeling nationwide data as a sum of state-level series almost certainly made the model less relevant. Montana is a reasonably populous state and the state-level model is sufficeintly powered, there is little benefit from including all these additional data points. Modelling Guam or other small localities might actually benefit from adding more data, but they matter little for the overall picture.
+> Modeling nationwide data as a sum of state-level series almost certainly made the model less relevant. Montana is a reasonably populous state and the state-level model is sufficiently powered, there is little benefit from including all these additional data points. Modelling Guam or other small localities might actually benefit from adding more data, but they matter little for the overall picture.
 
 > At the same time, different states have different policies and circumstance, so averaging over this diverse set of data reduces usefulness of the model. The picture of how pandemic progressed through the nation is granular and averaging over the whole nation blurs out this granularity, making predictions less relevant.
 
