@@ -296,13 +296,13 @@ model.bic %>%
 report()
 ```
 ```{r ARIMA model residuals}
-arima_seasonal <- arima(covid_MT$diff, order = c(3,0,0), seasonal = c(0, 0, 0), include.mean = T)
-plot_seasonal <- arima_seasonal %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
+MT_AR3 <- arima(covid_MT$diff, order = c(3,0,0), seasonal = c(0, 0, 0), include.mean = T)
+MT_AR3_plot <- MT_AR3 %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
   coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(3) model ACF plot")
 ```
 
 ```{r ARIMA model plot, fig.height=3, fig.width=4, echo=FALSE}
-plot_seasonal
+MT_AR3_plot
 ```
 ``` {r Ljung-Box test}
 resid.ar3 <- as.ts(arima_seasonal %>% residuals())
@@ -335,7 +335,7 @@ nation_ts <- aggregate(nation_df["new_cases"], by = nation_df["date_updated"], s
 nation_ts <- as_tsibble(nation_ts, index = date_updated)
 ```
 
-```{r Moving average}
+```{r Moving average, warning=FALSE}
 # The data that we eneded up using is already aggregated by week
 # Therefore weekly moving average is pointless
 # Smoothing over 4-week periods (not exactly monthly, but close enough):
@@ -357,22 +357,70 @@ nation_ts %>% ggplot() +
 
 > Smoothing effect does not appear to add any value to the analysis, therefore in the following analysis we will use unmsoothed weekly data, equivalent to what we would have, had we gotten the daily data form teh source. 
 
-```{r}
+>We know from previous analysis that the series requires de-trending. Below we plot the series itself, along side with the differenced series, ACF and PACF of the differenced series
 
-covid_overall<- mutate(covid_all_ts, diff = difference(new_cases, lag=24))
+```{r EDA of the nationwide data, warning=FALSE}
+nation_ts<- mutate(nation_ts, diff = difference(new_cases, lag=1))
 
-ts_plot <- covid_overall %>% ggplot() + aes(x = update_date, y = new_cases) + geom_line()
+ts_plot <- nation_ts %>% ggplot() + aes(x = date_updated, y = new_cases) + 
+  geom_line() + labs (x = "", y = "New cases")
 
-ts_diff_plot <- covid_overall %>% ggplot() + aes(x = update_date, y = diff) + geom_line()
+ts_diff_plot <- nation_ts %>% ggplot() + aes(x = date_updated, y = diff) + 
+  geom_line()   + labs (x = "", y = "1 week diff")
 
-acf_plot<-covid_overall %>% 
+acf_plot<-nation_ts %>% 
   ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "ACF")
 
-pacf_plot<-covid_overall %>% 
+pacf_plot<-nation_ts %>% 
   ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "PACF")
 
 grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
 ```
+
+> Even after differencing the series remains non-stationary, with variance strongly dependent on time. Additionally, ACF resembles dampened oscillations, indicating underlying seasonality. 
+It was not clear what would cause the seasonality, but running a few experiemtns we can find that de-trending with lag around half a year significantly reduces these artefacts. It is unlikely to be caused by the actual season, but probably a combinaton of how fast the virus spreads and how fast political descisions on shut down are made.
+
+```{r Nationwide data de-seasoned, warning=FALSE}
+nation_ts<- mutate(nation_ts, diff = difference(new_cases, lag=30))
+
+ts_plot <- nation_ts %>% ggplot() + aes(x = date_updated, y = new_cases) + 
+  geom_line()   + labs (x = "", y = "New cases")
+
+ts_diff_plot <- nation_ts %>% ggplot() + aes(x = date_updated, y = diff) +
+  geom_line()  + labs (x = "", y = "26 week diff")
+
+acf_plot<-nation_ts %>% 
+  ACF(diff, type="correlation") %>% autoplot()  + labs (x = "lag", y = "De-seasoned ACF")
+
+pacf_plot<-nation_ts %>% 
+  ACF(diff, type="partial") %>% autoplot() + labs (x = "lag", y = "De-seasoned  PACF")
+
+grid.arrange(ts_plot , ts_diff_plot, acf_plot, pacf_plot, nrow=2)
+```
+> After de-seasoning, the timeseries appears to be closer to stationary, with mean around 0 and standard deviation relatievely stable. Characteristic decay of ACF fanction indicates an AR process, which is consistent with quick decay of PACF plot. From these graphs it apperas that it might be an AR(5) process. Next, we will perform a grid search using BIC to evaluate goodness of fit.
+
+```{r ARIMA model selection nationwide}
+nation.bic<-nation_ts%>%
+model(ARIMA(diff~ 1 + pdq(0:10,0:2,0:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F))
+nation.bic %>%
+report()
+```
+
+```{r National model residuals}
+Nation_AR3 <- arima(nation_ts$diff, order = c(3,0,0), seasonal = c(0, 0, 0), include.mean = T)
+Nation_AR3_plot <- Nation_AR3 %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(3) model ACF on de-seasoned series")
+
+Nation_AR5 <- arima(nation_ts$diff, order = c(5,0,0), seasonal = c(0, 0, 0), include.mean = T)
+Nation_AR5_plot <- Nation_AR5 %>% residuals() %>% acf(plot = FALSE, na.action = na.pass) %>% autoplot() + 
+  coord_cartesian(xlim = c(1, 15)) + labs(x = "lag", y = "Resid ACF", title = "AR(5) model ACF on de-seasoned series")
+```
+
+```{r National model residuals plot, fig.height=3, fig.width=8.5, echo=FALSE}
+Nation_AR2_plot | Nation_AR5_plot
+```
+> The grid search yielded the lowest BIC for AR(2) model, however, residual ACF plot for AR3 model has a few strongly significant lags. AR(5) model that we infered from the analysis of ACF and PACF of de-seasoned series demonstrates a lot more random beheviour. Therefore we will move forward with the AR(5) model.
+
 ## (www3 points) Part-4: Write a few paragraphs about this modeling task
 
 The nationwide model that you just produced contains much **more** data than went into your state-level model. Does this make it a better model? Why or why not? 
