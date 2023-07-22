@@ -35,13 +35,16 @@ library(tseries)
 
 if(!"plyr"%in%rownames(installed.packages())) {install.packages("plyr")}
 library(plyr)
+
 if(!"dplyr"%in%rownames(installed.packages())) {install.packages("dplyr")}
 library(dplyr)
 
 if(!"ggthemes"%in%rownames(installed.packages())) {install.packages("ggthemes")}
 library(ggthemes)
+
 if(!"scales"%in%rownames(installed.packages())) {install.packages("scales")}
 library(scales)
+
 if(!"gridExtra"%in%rownames(installed.packages())) {install.packages("gridExtra")}
 library(gridExtra)
 
