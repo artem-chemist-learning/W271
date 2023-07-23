@@ -67,14 +67,6 @@ seasonal_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + ge
 #Display plots
 ts_plot/(trnd_plt|res_plt|seasonal_plt)
 ```
-
-```{r residuals for quad model, results='hide', warning=FALSE}
-png(file = './figures/plot1_quad_mod_resid.png', height=3, width=4, units = c("in"), res = 600)
-checkresiduals(model.quad, test=FALSE, plot = TRUE)
-dev.off()
-```
-
-
 Fraction of e-commerce in the overall retail sales is growing, and its growth is accelerating. It appears that at around the start of the COVID-19 pandemic the acceleration increased. This is evident from abrupt change in the overall trend curvature at the beginning of 2020. The series also has marked seasonal component, and the magnitude of the seasonal component is increasing, suggesting a multiplicative seasoning. The trend has obvious curvature, but neither quadratic, nor logarithmic transformation result in white-noise residuals.
 
 ## Check for Stationary 
@@ -82,12 +74,26 @@ Fraction of e-commerce in the overall retail sales is growing, and its growth is
 Use ACF/PACF and a unit root test to check if Retail Sales is stationary. If data is not stationary, difference the data, and apply the
 test again until it becomes stationary? How many differences are needed to make data stationary?
 
-```{r Check for Stationary}
-#Fill this in
+```{r difference the series, warning=FALSE}
+my_lag <- 4
+train_ts <- mutate(train_ts, 
+                   deseasoned = difference(value, lag = my_lag),
+                   detrended = difference(deseasoned, lag = 1))
+train_ts <- na.omit(train_ts)
 
+deseasoned_plot <- ggplot(data = train_ts) + aes(x = date, y = deseasoned) + 
+                  geom_line()
+detrended_plot <- ggplot(data = train_ts) + aes(x = date, y = detrended) +
+                  geom_line()
+deseasoned_plot | detrended_plot 
 ```
 
-> Given strong trend and seasonality in the data it is obvious that the original series is not stationary.  
+```{r Check for Stationary}
+value_p <- PP.test(train_ts$value)
+deseasoned_p <- PP.test(train_ts$deseasoned)
+detrended_p <- PP.test(train_ts$detrended)
+```
+Given strong trend and seasonality in the data it is obvious that the original series is not stationary. Deseasonng via differencing with lag 4 (1 year), does not eliminate the trend. Further de-trending with lag = 1 eliminates the trend, but the resulting trend is clearly heteroschedastic. Results of Phillips-Perron test reflect these observations. The test fails to reject the hypothesis of non-stationarity for the original series (p-value = `r round (value_p$p.value, digits = 3)`) and de-seasoned series (p-value = `r round(deseasoned_p$p.value, digits = 3)`), but strongly rejects this hypothesis for the de-trended series with p-value = `r round(detrended_p$p.value, digits = 3)`)
 
 ## Model identification and estimation
 
