@@ -100,13 +100,15 @@ y1941 <- y1940 + phi_1*(y1940-y1939) + phi_2*(y1939-y1939) + phi_3*(y1938-y1937)
 y1942 <- y1941 + phi_1*(y1941-y1940) + phi_2*(y1940-y1939) + phi_3*(y1939-y1938)
 ```
 
-Forecasted values for 1940, 1941 and 1942 are `r round(y1940, digits = 0)`, `r round(y1941, digits = 0)` and `r round(y1942, digits = 0)`, respectively.
+> Forecasted values for 1940, 1941 and 1942 are `r round(y1940, digits = 0)`, `r round(y1941, digits = 0)` and `r round(y1942, digits = 0)`, respectively.
 
 ## Interpret roots
 Find the roots of your model's characteristic equation. Is this process stationary?.
 
-```{r}
-
+```{r find roots of the charachteristic polynomial}
+roots <- polyroot(c(1, -phi_1, -phi_2, -phi_3))
+mroot1 <- Mod(roots[1])
+mroot2 <- Mod(roots[2])
+mroot3 <- Mod(roots[3])
 ```
-
-> 'Fill this in.'
+> Charachteristic polynomial for the ARMA model is $1-\phi_1B-\phi_2B^2-\phi_3B^3 = 0$. For the process to be stationary, all of the roots should lle strictly outside of a unit circle on the complex plane, i.e. modules of all roots should be more than 1. We have modules `r round(mroot1, digits =2)`, `r round(mroot2, digits =2)`, `r round(mroot3, digits =2)`, all above 1. That means that the process is stationary. 
