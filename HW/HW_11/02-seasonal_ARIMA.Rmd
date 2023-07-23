@@ -5,7 +5,7 @@ library(fredr)
 if (fredr_has_key()){
   ecom_df <- fredr(series_id = "ECOMPCTNSA",
   observation_start = as.Date("1990-01-01"))
-  ecom_df <- ecom_df[c(1,3)]
+  ecom_df <- cbind.data.frame(ecom_df[c(1,3)], index = 1:nrow(ecom_df))
   ecom_ts <- as_tsibble(ecom_df, index = "date")
 } else {
   print("Expect FREDR API key as an environment variable")
@@ -31,29 +31,51 @@ Separate the data set into training and test data. The training data is used to 
 Plot training data set of Retail Sales. What do you notice? Is there any transformation necessary?
 
 ```{r time series plot, results='hide', echo = FALSE, warning=FALSE}
+#Plot the original seris
 ts_plot <- autoplot(train_ts) + labs(x = element_blank(), y = 'Fraction of e-comm, %')
 
+# Calculate the trend and de-trended series
 trend <- ma(train_ts$value, order = 4, centre = T)
 seasonal_comp <- train_ts$value/trend 
 
+#Generate dataframe for modeling
 decomp_df <- cbind.data.frame(train_ts, trend, seasonal_comp)
-names(decomp_df) = c("my_date", "value", "trend", "detrended")
+names(decomp_df) = c("my_date", "value", "index", "trend", "detrended")
+decomp_df <- na.omit(decomp_df)
+# Fit quadratic and logarythmic models
+model.quad <- lm(formula = trend ~ index + I(index^2), data = decomp_df)
+model.log <- lm(formula = log(trend) ~ index, data = decomp_df)
 
+#Make plot for the TS
 trnd_plt<- ggplot(data = decomp_df) + 
   geom_line(aes(x = my_date, y = trend )) + 
   scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
 
-log_plt<- ggplot(data = decomp_df) + 
-  geom_line(aes(x = my_date, y = log(trend) )) + 
-  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
-
+#Make plot for the model residuals
+res_plt<- ggplot(data = decomp_df) + 
+  geom_line(aes(x = my_date, y = model.quad$residuals, color = "Quadratic")) + 
+  geom_line(aes(x = my_date, y = model.log$residuals, color = "Log" )) + 
+  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank(), y = "Model residuals") +
+  scale_color_manual(name = "Trend Models", values = c("Quadratic" = "black", 
+                                           "Log" = "blue")) +
+  # Legend text and position
+  theme(legend.position=c(.3,.75))
+# Make plot for the de-trended series
 seasonal_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + geom_line() + 
   scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
 
-ts_plot/(trnd_plt|log_plt|seasonal_plt)
+#Display plots
+ts_plot/(trnd_plt|res_plt|seasonal_plt)
 ```
 
-Fraction of e-commerce in the overall retail sales is growing, and its growth is accelerating. It appears that at around the start of the COVID-19 pandemic the acceleration increased. This is evident from abrupt change in the overall trend curvature at the beginning of 2020. The series also has marked seasonal component, and the magnitude of the seasonal component is increasing, suggesting a multiplicative seasoning. 
+```{r residuals for quad model, results='hide', warning=FALSE}
+png(file = './figures/plot1_quad_mod_resid.png', height=3, width=4, units = c("in"), res = 600)
+checkresiduals(model.quad, test=FALSE, plot = TRUE)
+dev.off()
+```
+
+
+Fraction of e-commerce in the overall retail sales is growing, and its growth is accelerating. It appears that at around the start of the COVID-19 pandemic the acceleration increased. This is evident from abrupt change in the overall trend curvature at the beginning of 2020. The series also has marked seasonal component, and the magnitude of the seasonal component is increasing, suggesting a multiplicative seasoning. The trend has obvious curvature, but neither quadratic, nor logarithmic transformation result in white-noise residuals.
 
 ## Check for Stationary 
 
@@ -65,7 +87,7 @@ test again until it becomes stationary? How many differences are needed to make 
 
 ```
 
-> 'Fill this in
+> Given strong trend and seasonality in the data it is obvious that the original series is not stationary.  
 
 ## Model identification and estimation
 
