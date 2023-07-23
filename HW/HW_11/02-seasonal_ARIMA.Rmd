@@ -1,5 +1,23 @@
 # (10 points) Seasonal ARIMA model
 
+```{r data download, results='hide'}
+library(fredr)
+if (fredr_has_key()){
+  ecom_df <- fredr(series_id = "ECOMPCTNSA",
+  observation_start = as.Date("1990-01-01"))
+  ecom_df <- ecom_df[c(1,3)]
+  ecom_ts <- as_tsibble(ecom_df, index = "date")
+} else {
+  print("Expect FREDR API key as an environment variable")
+  quit(save="ask")
+}
+```
+
+```{r train/test split}
+split <- as.Date("2020-12-31")
+train_ts <- ecom_ts %>% filter(date < split)
+test_ts <- ecom_ts %>% filter(date >= split)
+```
 Download the series of E-Commerce Retail Sales as a Percent of Total Sales [here](https://fred.stlouisfed.org/series/ECOMPCTNSA). 
 
 (Feel free to explore the `fredr` package and API if interested.)
@@ -12,12 +30,30 @@ Separate the data set into training and test data. The training data is used to 
 
 Plot training data set of Retail Sales. What do you notice? Is there any transformation necessary?
 
-```{r time series plot}
-#Fill this in
+```{r time series plot, results='hide', echo = FALSE, warning=FALSE}
+ts_plot <- autoplot(train_ts) + labs(x = element_blank(), y = 'Fraction of e-comm, %')
 
+trend <- ma(train_ts$value, order = 4, centre = T)
+seasonal_comp <- train_ts$value/trend 
+
+decomp_df <- cbind.data.frame(train_ts, trend, seasonal_comp)
+names(decomp_df) = c("my_date", "value", "trend", "detrended")
+
+trnd_plt<- ggplot(data = decomp_df) + 
+  geom_line(aes(x = my_date, y = trend )) + 
+  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
+
+log_plt<- ggplot(data = decomp_df) + 
+  geom_line(aes(x = my_date, y = log(trend) )) + 
+  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
+
+seasonal_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + geom_line() + 
+  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
+
+ts_plot/(trnd_plt|log_plt|seasonal_plt)
 ```
 
-> 'Fill this in
+Fraction of e-commerce in the overall retail sales is growing, and its growth is accelerating. It appears that at around the start of the COVID-19 pandemic the acceleration increased. This is evident from abrupt change in the overall trend curvature at the beginning of 2020. The series also has marked seasonal component, and the magnitude of the seasonal component is increasing, suggesting a multiplicative seasoning. 
 
 ## Check for Stationary 
 
