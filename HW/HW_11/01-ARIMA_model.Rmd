@@ -5,17 +5,19 @@ Consider `fma::sheep`, the sheep population of England and Wales from 1867--1939
 ```{r load sheep data, message=FALSE, warning=FALSE}
 #install.packages('fma')
 library(fma)
-head(fma::sheep)
+sheep_ts <- as_tsibble(fma::sheep)
+head(sheep_ts)
 ```
 
 ## Time series plot
 Produce a time plot of the time series, and comment on what you observe.
 
 ```{r produce a time series plot of sheep}
-sheep_plot <- 'fill this in'
+sheep_plot <- autoplot(sheep_ts) + labs(x = "Year", y = TeX(r'(Sheep $\times 10^{-6}$)'))
+sheep_plot
 ```
 
-> 'Fill this in' 
+> Sheep population is gradually decreasing over this period and appears to stabilize in the 1930's at around 1700$\times 10^{6}$. There is a significant local dip that coincides with the WWI and subsequent period of economic turmoil in Europe. 
 
 ## Fit a model 
 
@@ -30,23 +32,37 @@ where $\epsilon_t$ is a white noise series.
 ### Model type
 What sort of ARIMA model is this (i.e., what are $p$, $d$, and $q$)?
 
-> 'Fill this in.'
+> Thi is a representation of ARIMA(3.1.0). There are no error terms from the past lags, therefore MA term q = 0; there is only one differing step, so d = 1, and the last lag taken into account is $y_{t-4}$ which means p = 3 (given d = 1).
 
 ### Back to the future 
 
 Express this ARIMA model using backshift operator notation.
 
-> 'Fill this in.'
+> $(1-B)y_{t} = \phi_1(1-B)y_{t-1} + \phi_2(1-B)y_{t-2} + \phi_3(1-B)y_{t-3} + \epsilon_t$
+
+> $(1-B)y_{t} = \phi_1(1-B)By_{t} + \phi_2(1-B)B^2y_{t} + \phi_3(1-B)B^3y_{t} + \epsilon_t$
+
+> $(1-B)y_{t} = (1-B)(\phi_1By_{t} + \phi_2B^2y_{t} + \phi_3B^3y_{t}) + \epsilon_t$
+
+> $(1-B)(1-\phi_1B-\phi_2B^2-\phi_3B^3)y_{t} = \epsilon_t$
 
 ## Is this model appropriate? 
 
 Examine the ACF and PACF of the differenced data. Evaluate whether this model is appropriate. 
 
-```{r}
-
+```{r difference the data}
+# Add a column with differenced data to the original tsibble
+sheep_ts <- sheep_ts %>% mutate(diff = difference(value, lag = 1))
+# Generate acf plot
+acf_plot <- acf(sheep_ts$diff, na.action = na.pass, plot = FALSE) %>%
+  autoplot() + labs(title = "ACF for differenced data")
+# Generate pacf plot
+pacf_plot <- pacf(sheep_ts$diff, na.action = na.pass, plot = FALSE) %>%
+  autoplot() + labs(title = "PACF for differenced data")
+acf_plot | pacf_plot # Display plots
 ```
 
-> 'Fill this in.'
+> The model does not capture all the aspects of the underlying data. On one hand, PACF plot shows only 3 signofocant lags, indicating that thsi si indeed AR(3) process. On the other hand, ACF plot shows abrupt decrease of significance after lag 4 and some oscillating pattern, indicating MA(4) process with some periodicity. Therefore ARIMA(3.1.4) would be more appropriate model.
 
 ## Forecasts, by hand! 
 The last five values of the series are given below:
@@ -63,10 +79,28 @@ The estimated parameters are:
 
 Without using the forecast function, calculate forecasts for the next three years (1940--1942).
 
-```{r create forcasts by hand}
-## you can use R as a calculator here
+$y_{1940} = y_{1939} + \phi_1(y_{1939}-y_{1938}) + \phi_2(y_{1938}-y_{1937}) + \phi_3(y_{1937}-y_{1936}) + 0$
 
+$y_{1941} = y_{1940} + \phi_1(y_{1940}-y_{1939}) + \phi_2(y_{1939}-y_{1939}) + \phi_3(y_{1938}-y_{1937}) + 0$
+
+$y_{1942} = y_{1941} + \phi_1(y_{1941}-y_{1940}) + \phi_2(y_{1940}-y_{1939}) + \phi_3(y_{1939}-y_{1938}) + 0$
+
+
+```{r create forcasts by hand}
+y1936<-1665
+y1937<-1627 
+y1938<-1791
+y1939<-1797
+phi_1 <-  0.42
+phi_2 <- -0.20
+phi_3 <- -0.30
+
+y1940 <- y1939 + phi_1*(y1939-y1938) + phi_2*(y1938-y1937) + phi_3*(y1937-y1936)
+y1941 <- y1940 + phi_1*(y1940-y1939) + phi_2*(y1939-y1939) + phi_3*(y1938-y1937)
+y1942 <- y1941 + phi_1*(y1941-y1940) + phi_2*(y1940-y1939) + phi_3*(y1939-y1938)
 ```
+
+Forecasted values for 1940, 1941 and 1942 are `r round(y1940, digits = 0)`, `r round(y1941, digits = 0)` and `r round(y1942, digits = 0)`, respectively.
 
 ## Interpret roots
 Find the roots of your model's characteristic equation. Is this process stationary?.

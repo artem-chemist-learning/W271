@@ -19,7 +19,27 @@ always_allow_html: yes
 documentclass: book
 description: "This is the final problem set for MIDS w271: Time Series and Discrete Models! You've made it this far!"
 ---
-
+```{r load packages, echo = FALSE, message = FALSE}
+library(tidyverse)
+library(tsibble)
+library(latex2exp)
+library(dplyr)
+library(magrittr)
+library(patchwork)
+library(lubridate)
+library(feasts)
+library(forecast)
+library(sandwich)
+if (!"fable" %in% rownames(installed.packages())) {
+  install.packages("fable")
+}
+library(fable)
+if (!"car" %in% rownames(installed.packages())) {
+  install.packages("car")
+}
+library(car)
+theme_set(theme_minimal())
+```
 # Problem Set 11 {-}
 
 This is the final problem set that you will have to work on for this class. Congratulations! (Although there is still a group lab that will be the final assignment in the course.)
