@@ -134,19 +134,24 @@ Repeating this grid search on the shortned training set that excludes the pandem
 
 Do residual diagnostic checking of both models. Are the residuals white noise? Use the Ljung-box test to check if the residuals are white noise.  
 
-```{r diagnostic for manual model}
+```{r diagnostic for manual model, echo=FALSE}
 checkresiduals(model.manual, test=FALSE, plot = TRUE)
+BLT.manual <- Box.test(as.ts(model.manual$residuals), lag = 1, type = "Ljung-Box")
 ```
 
-```{r diagnostic for auto model}
+```{r diagnostic for auto model, echo=FALSE}
 checkresiduals(model.auto, test=FALSE, plot = TRUE)
+BLT.auto <- Box.test(as.ts(model.auto$residuals), lag = 1, type = "Ljung-Box")
 ```
 
-```{r diagnostic for short-set model}
+```{r diagnostic for short-set model, echo=FALSE}
 checkresiduals(model.short, test=FALSE, plot = TRUE)
+BLT.short <- Box.test(as.ts(model.short$residuals), lag = 1, type = "Ljung-Box")
 ```
 
-> 'Fill this in
+Both manually estimated model as well as `auto.arima` result fail visual tests for model quality: in both cases residual distribution has a significant outlier and residual plots contain strong spikes. However, Ljung-Box Test fails to reject the null hypothesis with p-values `r round(BLT.manual$p.value, digits =2)` and `r round(BLT.auto$p.value, digits = 2)` respectively.
+The model estimated on the shorter data does have all the charachteristics of good fit: normally distributed residuals with no pattern in acf plot and p-value `r round(BLT.short$p.value, digits =2)` on Ljung-Box Test, indicating no autocorrelation in residuals.
+
 
 
 ## Forcasting 
@@ -154,8 +159,31 @@ checkresiduals(model.short, test=FALSE, plot = TRUE)
 Use the both models to forecast the next 12 months and evaluate the forecast accuracy of these models.
 
 ```{r forcasting}
-#Fill this in
-
+frcst_length = length(test_ts$value)
+frcst_manual <- forecast(model.manual, h=frcst_length)
+frcst_auto <- forecast(model.auto, h=frcst_length)
+frcst_short <- forecast(model.short, h=frcst_length+4)
 ```
 
-> 'Fill this in
+```{r forcast plotting, echo = FALSE}
+df_2frcst <- cbind.data.frame(test_ts, frcst_manual$mean, frcst_auto$mean, frcst_short$mean[5:13])
+names(df_2frcst) <- c("my_date", "value", "index", "manual", "auto", "short")
+
+ggplot(data = df_2frcst) + 
+  geom_line(aes(x = my_date, y = value, color = "Observed data")) +
+  geom_line(aes(x = my_date, y = manual, color = "Manual"), linewidth = 0.25) + 
+  geom_line(aes(x = my_date, y = auto,  color = "Auto selected"), linewidth = 0.25) +
+  geom_line(aes(x = my_date, y = short,  color = "Short"), linewidth = 0.25) +
+  labs(x = element_blank(), y = 'Fraction of e-comm, %') + 
+  ylim(0, 26) +
+  # Legend colors
+  scale_color_manual(name = "", values = c("Observed data" = "black", 
+                                         "Manual" = "darkgreen",
+                                         "Auto selected" = "blue",
+                                         "Short" = "red" )) +
+  # Legend text and position
+  theme(legend.position=c(.25,.9),
+        legend.text=element_text(size=12))
+```
+
+Both manually selected and auto-selected models make essentially the same predictions, both significantly overestimate the growth rate for the e-commerce sales. This is because the models were trained on the data that contained a large shock and they implicitly expect more of the similar shocks to come. The model that was trained on truncated data, on the other hand, captures the underlying market forces without compounding effect of once-in-a-lifetime anomaly. As a result, once the anomaly passes, this model predicts the actual observed data much better than the previous two.
