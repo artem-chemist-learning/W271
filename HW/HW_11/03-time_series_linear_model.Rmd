@@ -2,8 +2,8 @@
 
 Daily electricity demand and temperature (in degrees Celsius) is recorded in `./data/temperature_demand.csv`. Please work through the following questions to build a time series linear model against this data.
 
-```{r load packages for time series linear model, warning=FALSE, message=FALSE}
-library(tidyverse)
+```{r load packages for time series linear model, warning=FALSE, message=FALSE, echo = FALSE}
+library(aTSA)
 ```
 
 ```{r load temperature data, message=FALSE} 
@@ -14,6 +14,8 @@ temperature <- read_csv('./data/temperature_demand.csv') %>%
      'work_day'    = 'WorkDay',
      'temperature' = 'Temperature'
   )
+temp_ts <- temperature %>% filter(work_day == 1) %>%as_tsibble(index = index)
+names(temp_ts) <- c("my_day", "demand", "work_day", "temps")
 #glimpse(temperature)
 ```
 
@@ -22,51 +24,108 @@ temperature <- read_csv('./data/temperature_demand.csv') %>%
 Plot electricity demand and temperature as time series. Is there any correlation between these to variables? If yes, Do you think is it a spurious correlation?
 
 ```{r plot electricity and temperature}
-#'fill this in'
 
+temp_plot <- ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = temps), color = "black") + 
+  labs(x = "", y = "Temps")
+
+demand_plot <-  ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = demand), color = "blue") + 
+  labs(x = "Day", y = "Demand")
+
+corr_plot <- ggplot(data = temp_ts) + 
+  geom_point(aes(x = temps, y = demand)) + 
+  labs(x = "Temperature", y = "Demand")
+
+(temp_plot/demand_plot)|corr_plot
 ```
+First of all, I decided to filter out the non-working days. Electricity demand is dramatically different between working and non-working days, so mixing the two together in the same model is equvalent to naive pooling of panel data - a sure way to cloudy conclusions. 
+This transformation revealed reasonable correlation between the two series. This is likely a real correlation: energy is required to heat and cool houses, so the further away temperature from the comfortable 20-25$^{o}$C, the higher energy demand. From that perspective, re-framing temperature time series as an absolute value of deviation from 23$^{o}$C shows even higher correlation.  It appears that cooling is a lot more energy expensive, so it would be even more evident if the deviation was weighted by the average amount of energy needed to cool or heat by 1 degree.
 
-> 'Fill this in
+```{r plot electricity and temperature - alternative}
+temp_ts <- temp_ts %>% mutate(dev = abs(temp_ts$temps-23),
+                              dev_sign = as.factor(ifelse(temp_ts$temps > 23, 1, 0)),
+                              temp_diff = difference(temp_ts$temps, lag = 1),
+                              demand_diff = difference(temp_ts$demand, lag = 1) )
+temp_ts <- na.omit(temp_ts)
+
+temp_dev_plot <- ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = dev), color = "black") + 
+  labs(x = "", y = "Temps")
+
+corr_plot <- ggplot(data = temp_ts) + 
+  geom_point(aes(x = dev, y = demand)) + 
+  labs(x = TeX("Deviation from 23$^{o}$C"), y = "Demand")
+
+(temp_dev_plot/demand_plot)|corr_plot
+```
 
 ## Cointegration test
 
 Use the Engle-Granger test to check for cointegration. What do you conclude? 
 
 ```{r Cointegration test}
-#'fill this in'
-
+no_diff_test <- coint.test(temp_ts$demand, temp_ts$dev, d = 0, output = FALSE)
+diff_test <- coint.test(temp_ts$demand, temp_ts$dev, d = 1, output = FALSE)
 ``` 
+
+```{r plot electricity and temperature - alternative}
+demand_diff_plot <- ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = demand_diff), color = "blue") + 
+  labs(x = "", y = "Temps")
+
+temp_diff_plot <- ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = temp_diff), color = "black") + 
+  labs(x = "", y = "Temps")
+
+diff_corr_plot <- ggplot(data = temp_ts) + 
+  geom_point(aes(x = temp_diff, y = demand_diff)) + 
+  labs(x = TeX("Temperature change"), y = "Demand change")
+
+(temp_diff_plot/demand_diff_plot)|diff_corr_plot
+```
+
+In case of non-differenced series, Engle-Granger test rejects null-hypothesis of no co-integration with p-value < `r no_diff_test[1,3]`. The same holds even after differencing of both series with lag 1 (p-value < `r diff_test`). This indicates that the series are likely related to each other and the correlation is real. At the same time, the differenced time series only appear correlated because of a few extreme points, within the bounds of normal temparature variability correlation is very weak. 
 
 ## Fit Model
 
 Based on cointegration test,fit a regression model for demand with temperature as an explanatory variable(or their first difference).
 
 ```{r Fit model}
-#'fill this in'
 
+nodiff.model <- lm(formula = demand ~ dev + dev_sign, data = temp_ts)
+summary(nodiff.model)
+
+diff.model <- lm(formula = demand_diff ~ temp_diff, data = temp_ts)
+diff.model
 ``` 
-
+The model that is the most realistic takes into account how far temperature is out of the comfortable zone around 23C, which way this deviation is.
 
 ## Residuals Plot
 
 Produce a residual plot of the estimated model in pervious part. Is the model adequate? Describe any outliers or influential observations, and discuss how the model could be improved.
 
-```{r plot residuals}
-#Fill this in
-
+```{r plot no diff residuals}
+checkresiduals(nodiff.model)
+checkresiduals(diff.model)
 ```
 
-> 'Fill this in: 
+> Residual plot for the model with no differencing has a few features indicating bad fit: significant lags in the ACF plot, visible pattern in the residual graph. Additional transformations would be needed to improve the model. Diagnostic plots for the model built on differenced data are free from these issues, but the residuals have few very strong outliers. Explanotary power of the latter model is questionable, becasue the bulk of the data showes no correlation and the model hinges on just 6 points. 
 
 ## Forcasting model
 
 Use a model to forecast the electricity demand (with **prediction** intervals) that you would expect for the next day if the maximum temperature was $15^\circ$. Compare this with the forecast if the with maximum temperature was $35^\circ$. Do you believe these forecasts? Why or why not? 
  
 ```{r produce a forecast with the model}
-#Fill this in
+# Make df with the future data
+data.15 <- data.frame(dev = 8, dev_sign = as.factor(0), my_day = 366)
+data.35 <- data.frame(dev = 12, dev_sign = as.factor(1), my_day = 366)
 
+# Do forecasts with two models and stitch the results in a dataframe
+pred_15 <- predict.lm(nodiff.model, data.15, interval = "prediction", level = 0.95)
+pred_35 <- predict.lm(nodiff.model, data.35, interval = "prediction", level = 0.95)
 ```
 
-> 'Fill this in:' 
+The model taking into account sign and the magnitude of deviation from the comfortable temperature makes reasonable predictions in both cases. It suggests that if the next working day (that is, day 366 on the current series) is going to be 15C, electricity demand is estimated to be `r round(pred_15[1], digits = 0)` with 95% CI from `r round(pred_15[2], digits = 0)` to `r round(pred_15[3], digits = 0)`. In case the temperature jumps up to 35C, the demand is estimated to be `r round(pred_35[1], digits = 0)` with 95% CI from `r round(pred_35[2], digits = 0)` to `r round(pred_35[3], digits = 0)`. These estimates are well within the range of the values observed in the past. 
 
 
