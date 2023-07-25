@@ -160,9 +160,9 @@ Use the both models to forecast the next 12 months and evaluate the forecast acc
 
 ```{r forcasting}
 frcst_length = length(test_ts$value)
-frcst_manual <- forecast(model.manual, h=frcst_length)
-frcst_auto <- forecast(model.auto, h=frcst_length)
-frcst_short <- forecast(model.short, h=frcst_length+4)
+frcst_manual <- forecast::forecast(model.manual, h=frcst_length)
+frcst_auto <- forecast::forecast(model.auto, h=frcst_length)
+frcst_short <- forecast::forecast(model.short, h=frcst_length+4)
 ```
 
 ```{r forcast plotting, echo = FALSE}
