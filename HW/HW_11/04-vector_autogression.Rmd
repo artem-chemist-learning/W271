@@ -13,6 +13,7 @@ Our goal is to develop a VAR model for these data for the period 1946-2003, and 
 
 ```{r read credit data, message=FALSE}
 credit <- read_csv('./data/mortgage_credit.csv')
+cred_ts <- as_tsibble(credit, index = Year)
 #glimpse(credit)
 ```
 
@@ -31,22 +32,29 @@ Plot the time-series of real mortgage credit (RMC), real consumer credit (RCC) a
 ## Check for the unit root
 
 Plot ACF/PACF and Perform the unit root test on these variables and report the results. Do you reject the null of unit root for them? Is the first differencing necessary? 
-
 ```{r ACF/PACF and  unit root test}
-df %>%
-as_tsibble(index=Date)%>%
-features(bitcoin, unitroot_kpss)
+cred_ts %>% gg_tsdisplay(RMC, plot_type="partial") +labs(subtitle = "RMC")
+cred_ts %>% gg_tsdisplay(RCC, plot_type="partial") +labs(subtitle = "RCC")
+cred_ts %>% gg_tsdisplay(RDPI, plot_type="partial") +labs(subtitle = "RDPI")
 
 ```
 
-The ACF of both series decay very slowly, and The first lag of their PACF is 1, which suggests that these series should have a unit root. The KPSS unit root tests results suggest that we reject the null of stationarity for the bitcoin prices and google trend.
 
-d) Now calculate the first difference for the log of bitcoin prices and google search volume. Are they stationary? Test using the unit root tests.
+```{r ACF/PACF and  unit root test}
+RMC_kpss <- cred_ts %>% features(RMC, unitroot_kpss)
+RCC_kpss <- cred_ts %>% features(RCC, unitroot_kpss)
+RDPI_kpss <- cred_ts %>% features(RDPI, unitroot_kpss)
+```
+
+The ACF oa all three series decay slowly, and The first lag of their PACF is 1 in all three cases, which suggests non-stationaruty. The KPSS tests for RMC, RCC and RDPI reject the null hypothesis with the p values of `r round(RMC_kpss$kpss_pvalue, digits = 3)`,  es should have a unit root. The KPSS tests for RMC, RCC and RDPI reject the null hypothesis with the p values of `r round(RMC_kpss$kpss_pvalue, digits = 3)`,`r round(RCC_kpss$kpss_pvalue, digits = 3)` and `r round(RDPI_kpss$kpss_pvalue, digits = 3)` respectively, suggesting that the series are not stationary.
+
+d) Now calculate the first differences of the series
 ```{r}
-df %>%
-as_tsibble(index=Date)%>%
-mutate(diff_bitcoin = difference(bitcoin)) %>%
-features(diff_bitcoin, unitroot_kpss)
+cred_diff <- cred_ts %>% 
+mutate(diff_RMC = difference(RMC), diff_RCC = difference(RCC), diff_RDPI = difference(RDPI))
+RMC_kpss_diff <- cred_diff %>% features(diff_RMC, unitroot_kpss)
+RCC_kpss_diff <- cred_diff %>% features(diff_RCC, unitroot_kpss)
+RDPI_kpss_diff <- cred_diff %>% features(diff_RDPI, unitroot_kpss)
 ```
 
 ## Determine VAR model
