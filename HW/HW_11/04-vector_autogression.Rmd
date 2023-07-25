@@ -33,23 +33,39 @@ Plot the time-series of real mortgage credit (RMC), real consumer credit (RCC) a
 Plot ACF/PACF and Perform the unit root test on these variables and report the results. Do you reject the null of unit root for them? Is the first differencing necessary? 
 
 ```{r ACF/PACF and  unit root test}
-#Fill this in
+df %>%
+as_tsibble(index=Date)%>%
+features(bitcoin, unitroot_kpss)
 
 ```
 
-> 'Fill this in
+The ACF of both series decay very slowly, and The first lag of their PACF is 1, which suggests that these series should have a unit root. The KPSS unit root tests results suggest that we reject the null of stationarity for the bitcoin prices and google trend.
 
+d) Now calculate the first difference for the log of bitcoin prices and google search volume. Are they stationary? Test using the unit root tests.
+```{r}
+df %>%
+as_tsibble(index=Date)%>%
+mutate(diff_bitcoin = difference(bitcoin)) %>%
+features(diff_bitcoin, unitroot_kpss)
+```
 
 ## Determine VAR model
 
 Based on the unit root results transform the variables and determine the lag length of the VAR using the information criteria.
 
 ```{r Determine VAR model}
-#Fill this in
-
+df1 <- df %>%
+mutate(
+diff_bitcoin = difference(bitcoin),
+diff_google = difference(google)
+) %>%
+filter(Date >= "2020-01-12") %>%
+dplyr::select(diff_bitcoin,diff_google)
+VARselect(df1, lag.max = 4, type="none")
 ```
 
-> 'Fill this in
+We use different model selection criteria to choose the optimal number of lags. AIC, HQ, and FPE suggest three lags while SC
+(akin to BIC in the univariate case) suggests 1 lag. Here we estimate VAR(3)
 
 
 ## Estimation 
@@ -57,11 +73,21 @@ Based on the unit root results transform the variables and determine the lag len
 Estimate the selected VAR in previous part and comment on the results.
 
 ```{r Estimate VAR}
-#Fill this in
-
+var_diff = vars::VAR(df1, p = 3, type = "none")
+summary(var_diff)
 ```
 
-> 'Fill this in
+In the first equation, none of the coefficients are statistically significant in 5% for change in bitcoin regression. R-squared is small,
+and only 6.9 percent of the variations of change in bitcoin prices can be explained by the lagged change in google search volume
+and lagged change in bitcoin prices.
+In the second equation, for change in google trend, The estimated VAR model suggests that the past values of change in bitcoin
+prices have explanatory power for current values of change in google trend.
+However, we find that only lag one and three of the bitcoin prices is significant at a 10% percent significance level.
+So apparently, large fluctuations in bitcoin prices lead to higher attention to the bitcoin and higher google search volume.
+Also, 21 percent of the variations of change in google search volume can be explained by the lag of change in google search volume
+and the lag of change in bitcoin prices.
+So, based on these results, we can conclude that higher bitcoin prices could predict higher google search volume, but not the other
+way around.
 
 
 ## Model diagnostic
@@ -69,12 +95,18 @@ Estimate the selected VAR in previous part and comment on the results.
 Do diagnostic checking of the VAR model.
 
 ```{r Model diagnostic}
-#Fill this in
+roots(var_diff)
+
+var_diff_test<- serial.test(var_diff, lags.pt = 12)
+var_diff_test
 
 ```
 
-> 'Fill this in
-
+First, we need to check if the estimated VAR(3) is a stable process, and we will need to check if the eigenvalues of the companion
+matrix are all less than one.
+Here, since here all eigenvalues are less than 1, VAR(3) is a stable process.
+Then, we need to check for tests for autocorrelation in residuals. The serial.test() computes the multivariate Portmanteau- for serial correlation.
+Based on the test results, the null hypothesis of no autocorrelation is not rejected since the p-value is 0.4868.
 
 ## Forecasting
 
@@ -82,8 +114,10 @@ forecast the last three years, 2004-2006.
 
 
 ```{r Forecasting}
-#Fill this in
-
+var_diff = vars::VAR(as.ts(df1), p = 3, type = "none")
+forecast(var_diff) %>%
+autoplot() +
+xlab("Weeks")
 ```
 
-> 'Fill this in
+> Both changes in log of bitcoin prices and google trend search revert to their means, which is onsistent with stationarity.
