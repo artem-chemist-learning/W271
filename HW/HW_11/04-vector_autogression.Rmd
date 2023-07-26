@@ -1,7 +1,8 @@
 # (12 points) Vector autoregression
 
 ```{r load VAR packages, message=FALSE,message=FALSE}
-library(tidyverse)
+# For estimation, lag selection, diagnostic testing, forecasting, and impulse response functions of VAR 
+library(vars)
 ```
 
 Annual values for real mortgage credit (RMC), real consumer credit (RCC) and real disposable personal income (RDPI) for the period 1946-2006 are recorded in `./data/mortgage_credit.csv`. 
@@ -38,11 +39,10 @@ rmc_plot|rcc_plot|rdpi_plot
 
 > The series have clear trend and variable variance - they do not look stationary at all.
 
-
 ## Check for the unit root
 
 Plot ACF/PACF and Perform the unit root test on these variables and report the results. Do you reject the null of unit root for them? Is the first differencing necessary? 
-```{r ACF/PACF and  unit root test}
+```{r ACF PACF for the three series}
 cred_ts %>% gg_tsdisplay(RMC, plot_type="partial") +labs(subtitle = "RMC")
 cred_ts %>% gg_tsdisplay(RCC, plot_type="partial") +labs(subtitle = "RCC")
 cred_ts %>% gg_tsdisplay(RDPI, plot_type="partial") +labs(subtitle = "RDPI")
@@ -50,16 +50,16 @@ cred_ts %>% gg_tsdisplay(RDPI, plot_type="partial") +labs(subtitle = "RDPI")
 ```
 
 
-```{r ACF/PACF and  unit root test}
+```{r unit root test}
 RMC_kpss <- cred_ts %>% features(RMC, unitroot_kpss)
 RCC_kpss <- cred_ts %>% features(RCC, unitroot_kpss)
 RDPI_kpss <- cred_ts %>% features(RDPI, unitroot_kpss)
 ```
 
-The ACF oa all three series decay slowly, and The first lag of their PACF is 1 in all three cases, which suggests non-stationaruty. The KPSS tests for RMC, RCC and RDPI reject the null hypothesis with the p values of `r round(RMC_kpss$kpss_pvalue, digits = 3)`,  es should have a unit root. The KPSS tests for RMC, RCC and RDPI reject the null hypothesis with the p values of `r round(RMC_kpss$kpss_pvalue, digits = 3)`,`r round(RCC_kpss$kpss_pvalue, digits = 3)` and `r round(RDPI_kpss$kpss_pvalue, digits = 3)` respectively, suggesting that the series are not stationary.
+The ACF of all three series decay slowly, and The first lag of their PACF is 1 in all three cases, which suggests non-stationarity. The KPSS tests for RMC, RCC and RDPI reject the null hypothesis with the p values of `r round(RMC_kpss$kpss_pvalue, digits = 3)`,  es should have a unit root. The KPSS tests for RMC, RCC and RDPI reject the null hypothesis with the p values of `r round(RMC_kpss$kpss_pvalue, digits = 3)`,`r round(RCC_kpss$kpss_pvalue, digits = 3)` and `r round(RDPI_kpss$kpss_pvalue, digits = 3)` respectively, suggesting that the series are not stationary.
 
 d) Now calculate the first differences of the series
-```{r}
+```{r difference the three series}
 cred_diff <- cred_ts %>% 
 mutate(diff_RMC = difference(RMC), diff_RCC = difference(RCC), diff_RDPI = difference(RDPI))
 RMC_kpss_diff <- cred_diff %>% features(diff_RMC, unitroot_kpss)
@@ -72,18 +72,13 @@ RDPI_kpss_diff <- cred_diff %>% features(diff_RDPI, unitroot_kpss)
 Based on the unit root results transform the variables and determine the lag length of the VAR using the information criteria.
 
 ```{r Determine VAR model}
-df1 <- df %>%
-mutate(
-diff_bitcoin = difference(bitcoin),
-diff_google = difference(google)
-) %>%
-filter(Date >= "2020-01-12") %>%
-dplyr::select(diff_bitcoin,diff_google)
-VARselect(df1, lag.max = 4, type="none")
+df_to_test <- cred_diff %>%
+dplyr::select(diff_RMC,diff_RCC,diff_RDPI) %>% na.omit()
+
+VARselect(df_to_test, lag.max = 4, type="none")
 ```
 
-We use different model selection criteria to choose the optimal number of lags. AIC, HQ, and FPE suggest three lags while SC
-(akin to BIC in the univariate case) suggests 1 lag. Here we estimate VAR(3)
+All criteria agree on VAR(3)
 
 
 ## Estimation 
@@ -91,8 +86,8 @@ We use different model selection criteria to choose the optimal number of lags. 
 Estimate the selected VAR in previous part and comment on the results.
 
 ```{r Estimate VAR}
-var_diff = vars::VAR(df1, p = 3, type = "none")
-summary(var_diff)
+# var_diff = vars::VAR(df_to_test, p = 3, type = "none")
+# summary(var_diff)
 ```
 
 In the first equation, none of the coefficients are statistically significant in 5% for change in bitcoin regression. R-squared is small,
@@ -113,10 +108,10 @@ way around.
 Do diagnostic checking of the VAR model.
 
 ```{r Model diagnostic}
-roots(var_diff)
+# roots(var_diff)
 
-var_diff_test<- serial.test(var_diff, lags.pt = 12)
-var_diff_test
+# var_diff_test<- serial.test(var_diff, lags.pt = 12)
+# var_diff_test
 
 ```
 
@@ -132,10 +127,8 @@ forecast the last three years, 2004-2006.
 
 
 ```{r Forecasting}
-var_diff = vars::VAR(as.ts(df1), p = 3, type = "none")
-forecast(var_diff) %>%
-autoplot() +
-xlab("Weeks")
+#var_diff = vars::VAR(as.ts(df1), p = 3, type = "none")
+# forecast(var_diff) %>% autoplot() + xlab("Weeks")
 ```
 
 > Both changes in log of bitcoin prices and google trend search revert to their means, which is onsistent with stationarity.
