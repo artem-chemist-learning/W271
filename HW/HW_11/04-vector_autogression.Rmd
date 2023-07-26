@@ -14,6 +14,7 @@ Our goal is to develop a VAR model for these data for the period 1946-2003, and 
 ```{r read credit data, message=FALSE}
 credit <- read_csv('./data/mortgage_credit.csv')
 #glimpse(credit)
+cred_ts <- credit %>% as_tsibble(index = "Year")
 ```
 
 ## Time series plot
@@ -21,11 +22,20 @@ credit <- read_csv('./data/mortgage_credit.csv')
 Plot the time-series of real mortgage credit (RMC), real consumer credit (RCC) and real disposable personal income (RDPI)? Do they look stationary?
 
 ```{r Time series plot}
-#Fill this in
+rmc_plot <- ggplot(data = cred_ts) + 
+  geom_line(aes(x = Year, y = RMC), color = "black")
+
+rcc_plot <-  ggplot(data = cred_ts) + 
+  geom_line(aes(x = Year, y = RCC), color = "blue")
+
+rdpi_plot <- ggplot(data = cred_ts) + 
+  geom_line(aes(x = Year, y = RDPI), color = "green")
+
+rmc_plot|rcc_plot|rdpi_plot
 
 ```
 
-> 'Fill this in
+> The series have clear trend and variable variance - they do not look stationary at all.
 
 
 ## Check for the unit root
