@@ -1,38 +1,46 @@
-# (10 points) Seasonal ARIMA model
+```{r data download, results='hide', warning=FALSE, echo=FALSE}
+library(tidyverse)
+library(tsibble)
+library(latex2exp)
+library(dplyr)
+library(magrittr)
+library(patchwork)
+library(lubridate)
+library(feasts)
+library(forecast)
+library(sandwich)
 
-```{r data download, results='hide'}
-library(fredr)
-if (fredr_has_key()){
-  ecom_df <- fredr(series_id = "ECOMPCTNSA",
-  observation_start = as.Date("1990-01-01"))
-  ecom_df <- cbind.data.frame(ecom_df[c(1,3)], index = 1:nrow(ecom_df))
-  ecom_ts <- as_tsibble(ecom_df, index = "date")
-} else {
-  print("Expect FREDR API key as an environment variable")
-  quit(save="ask")
-}
+if (!"fable" %in% rownames(installed.packages())) { install.packages("fable") }
+library(fable)
+
+if (!"car" %in% rownames(installed.packages())) { install.packages("car")}
+library(car)
+theme_set(theme_minimal())
 ```
 
-```{r train/test split}
-split <- as.Date("2020-12-31")
-train_ts <- ecom_ts %>% filter(date < split)
-test_ts <- ecom_ts %>% filter(date >= split)
+```{r read csv into a dataframe}
+isales <- read.csv('./data/iodine_sales.csv')
+isales$inv_date <- as.Date(isales$inv_date)
+isales$total <- as.numeric(isales$total)
+
+#get a list of customers, who bought more than 1M worth of product in 10 years
+big_customers <- isales %>% group_by(cus_name)%>% summarise(rev = sum(total)) %>% filter(rev > 500000)
+
+# Get sales for big customers only
+sales <- isales %>% filter(cus_name %in% big_customers$cus_name)
 ```
-Download the series of E-Commerce Retail Sales as a Percent of Total Sales [here](https://fred.stlouisfed.org/series/ECOMPCTNSA). 
 
-(Feel free to explore the `fredr` package and API if interested.)
 
-Our goal is to Build a Seasonal ARIMA model, following all appropriate steps for a univariate time series model.
-
-Separate the data set into training and test data. The training data is used to estimate model parameters, and it is for 10/1999-12/2020. The test data is used to evaluate its accuracy, and it is for 01/2021-01/22.
-
-## Time series plot
-
-Plot training data set of Retail Sales. What do you notice? Is there any transformation necessary?
+## Total I-125 sales plot
 
 ```{r time series plot, results='hide', echo = FALSE, warning=FALSE}
+monthly_sales <- isales %>% group_by(inv_date) %>% summarize(sales = sum(total))
+monthly_sales <- monthly_sales %>% as_tsibble(index = inv_date)
 #Plot the original seris
-ts_plot <- autoplot(train_ts) + labs(x = element_blank(), y = 'Fraction of e-comm, %')
+
+
+monthly_sales %>% 
+  ggplot() + aes(x = inv_date, y = sales) + geom_line() 
 
 # Calculate the trend and de-trended series
 trend <- ma(train_ts$value, order = 4, centre = T)
@@ -67,7 +75,10 @@ seasonal_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + ge
 #Display plots
 ts_plot/(trnd_plt|res_plt|seasonal_plt)
 ```
-Fraction of e-commerce in the overall retail sales is growing, and its growth is accelerating. It appears that at around the start of the COVID-19 pandemic the acceleration increased. This is evident from abrupt change in the overall trend curvature at the beginning of 2020. The series also has marked seasonal component, and the magnitude of the seasonal component is increasing, suggesting a multiplicative seasoning. The trend has obvious curvature, but neither quadratic, nor logarithmic transformation result in white-noise residuals.
+
+```{r}
+ts_plot
+```
 
 ## Check for Stationary 
 
