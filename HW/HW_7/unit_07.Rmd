@@ -180,7 +180,7 @@ weather$time_index <- make_datetime(year = weather$year,
                                     month= weather$month,
                                     day = weather$day,
                                     hour = weather$hour)
-#  Remove duplicates by taking a median among them
+#  Remove duplicates by taking a median among them, omit empty rows
 weather <- weather %>%
  group_by(origin, time_index)  %>%
  summarise(across(5:6, ~median(.x))) %>% na.omit()
@@ -192,7 +192,7 @@ weather_ts <- as_tsibble(weather, key = origin, index = time_index)
 weather_weekly <- weather_ts  %>%
  index_by(week = ~week(.)) %>% summarise(across(2:3, ~mean(.x)))
 
-weather_ts %>% head()
+weather_weekly %>% head()
 ```
 
 
@@ -270,6 +270,7 @@ temp_plot | dew_plot
 ```
 
 Looking at these two BIC scoring criteria there seems to be a clear **lack** of improvement beyond a polynomial order of four. *Perhaps* moving from four to five would still increase the model's performance, but it is small compared to the polynomials 2-4. For us, if we were fitting this model, we would be likely to stop at `poly( , degree = 4)`. 
+> BIC appears to be a prefered method of assesment as it shows a clear minimum *in the graph above, while AIC hardly distingushes between polynomes above 4'th degree. Using BIC as a criterion, we can see that polynome of 4'th degree has the minimum IC value and thus is the optimal choice.
 
 # Question-3: Smooth Moves 
 
