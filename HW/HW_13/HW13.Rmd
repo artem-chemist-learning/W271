@@ -89,11 +89,11 @@ trnd_plt<- ggplot(data = decomp_df) +
   labs(x = element_blank())+ ylim(0,900)
 
 # Make plot for the de-trended series
-seasonal_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + geom_line() + 
+detrended_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + geom_line() + 
   labs(x = element_blank())
 
 #Display plots
-ts_plot/(trnd_plt|seasonal_plt)
+ts_plot/(trnd_plt|detrended_plt)
 ```
 ## Check for Stationary 
 
@@ -108,21 +108,36 @@ Given strong trend in the data it is obvious that the original series is not sta
 
 ## Model identification and estimation
 
+```{r test train split}
+train_ts <- monthly_sales %>% filter(date < as.Date("2021-01-01"))
+test_ts <- monthly_sales %>% filter(date >= as.Date("2021-01-01"))
+```
+
+
 Use ACF/PACF to identify an appropriate SARIMA model. Estimate both select model and model chosen by ARIMA()
 
 ```{r Model identification}
-acf_plot <- acf(decomp_df$detrended, plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
-pacf_plot <- pacf(decomp_df$detrended, plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
+decomp_filtered <- filter(decomp_df, my_date  < as.Date("2021-01-01") )
+
+acf_plot <-  decomp_filtered$detrended %>%
+  acf(plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
+
+pacf_plot <- decomp_filtered$detrended %>%
+  pacf(plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
 acf_plot | pacf_plot
 ```
+
+
+
 ```{r Manual Model estimation}
-model.manual<- arima(monthly_sales$sales, order = c(1, 1, 4))
+model.manual<- arima(train_ts$sales, order = c(3, 1, 6))
+model.manual
 checkresiduals(model.manual)
 ```
 
 
 ```{r auto model estimation}
-model.auto <- monthly_sales$sales %>% ts(frequency = 12) %>% auto.arima(d = 1, D = 0,
+model.auto <- train_ts$sales %>% ts(frequency = 12) %>% auto.arima(d = 1, D = 0,
               max.p = 5, max.q = 5, max.P = 2, max.Q = 2, max.d = 2, max.D = 2,
               max.order = 10,
               start.p = 1, start.q = 1, start.P = 1, start.Q = 1,
@@ -131,12 +146,13 @@ model.auto
 ```
 
 ```{r auto model estimation}
-model.noseason <- monthly_sales$sales %>% auto.arima(d = 1,
+short_ts <- train_ts  %>% filter(date > as.Date("2019-01-01"))
+model.short <- short_ts$sales %>% auto.arima(d = 1,
               max.p = 5, max.q = 5, max.d = 2,
               max.order = 10,
               start.p = 1, start.q = 1,
   ic="bic", seasonal = FALSE, stepwise = FALSE, approximation = FALSE, trace = FALSE)
-model.noseason
+model.short
 ```
 
 ACF plot for de-seasoned and de-trended series contains one strongly significant lag = 1, same as PACF plot. Formally, this is typical for ARMA(1.1) process, however, there is also a chance that this is an artifact caused by the few lags at the end of the series that are affected by the pandemic abnormality. Having abnormally large values at the tail of the series might make short lags a lot more significant. This considerations aside, ACF and PACF plot suggest SARIMA(1.1.1)(0.1.0)[4] model. Estimating this model results in AIC = `r round(model.manual$aic, digits = 1)`.
@@ -172,23 +188,23 @@ The model estimated on the shorter data does have all the charachteristics of go
 Use the both models to forecast the next 12 months and evaluate the forecast accuracy of these models.
 
 ```{r forcasting}
-frcst_length = length(test_ts$value)
+frcst_length = length(test_ts$sales)
 frcst_manual <- forecast(model.manual, h=frcst_length)
 frcst_auto <- forecast(model.auto, h=frcst_length)
-frcst_short <- forecast(model.short, h=frcst_length+4)
+frcst_short <- forecast(model.short, h=frcst_length)
 ```
 
 ```{r forcast plotting, echo = FALSE}
-df_2frcst <- cbind.data.frame(test_ts, frcst_manual$mean, frcst_auto$mean, frcst_short$mean[5:13])
-names(df_2frcst) <- c("my_date", "value", "index", "manual", "auto", "short")
+df_2frcst <- cbind.data.frame(test_ts, frcst_manual$mean, frcst_auto$mean, frcst_short$mean)
+names(df_2frcst) <- c("my_date", "value", "detrended", "manual", "auto", "short")
 
 ggplot(data = df_2frcst) + 
   geom_line(aes(x = my_date, y = value, color = "Observed data")) +
   geom_line(aes(x = my_date, y = manual, color = "Manual"), linewidth = 0.25) + 
   geom_line(aes(x = my_date, y = auto,  color = "Auto selected"), linewidth = 0.25) +
   geom_line(aes(x = my_date, y = short,  color = "Short"), linewidth = 0.25) +
-  labs(x = element_blank(), y = 'Fraction of e-comm, %') + 
-  ylim(0, 26) +
+  labs(x = element_blank(), y = 'Sales, CAD') + 
+  ylim(0,700000)+
   # Legend colors
   scale_color_manual(name = "", values = c("Observed data" = "black", 
                                          "Manual" = "darkgreen",
