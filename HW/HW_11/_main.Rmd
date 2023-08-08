@@ -1,0 +1,570 @@
+---
+title: "Time Series Analysis"
+author: "UC Berkeley, School of Information: MIDS w271"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+output: 
+  bookdown::pdf_book: default
+  bookdown::gitbook:
+    config:
+      toc:
+        collapse: section
+        scroll_highlight: yes
+      fontsettings:
+        theme: white
+        family: serif
+        size: 2
+    highlight: tango
+always_allow_html: yes
+documentclass: book
+description: "This is the final problem set for MIDS w271: Time Series and Discrete Models! You've made it this far!"
+---
+```{r load packages, echo = FALSE, message = FALSE}
+library(tidyverse)
+library(tsibble)
+library(latex2exp)
+library(dplyr)
+library(magrittr)
+library(patchwork)
+library(lubridate)
+library(feasts)
+library(forecast)
+library(sandwich)
+if (!"fable" %in% rownames(installed.packages())) {
+  install.packages("fable")
+}
+library(fable)
+if (!"car" %in% rownames(installed.packages())) {
+  install.packages("car")
+}
+library(car)
+theme_set(theme_minimal())
+```
+# Problem Set 11 {-}
+
+This is the final problem set that you will have to work on for this class. Congratulations! (Although there is still a group lab that will be the final assignment in the course.)
+
+You will start with some guided work, and then proceed into less structured work that will let you stretch and demonstrate what you have learned to date.     
+
+Notice, in particular, that the last few questions are asking you essentially to "produce a model" using a method. At this point in the course, you should be familiar with many of the model forms that you *might* fit; and, you are familiar with methods that you can use to evaluate models' performances. In these questions, we are asking you to, essentially, fit a good model with a method and then to evaluate how a good model with "this" method is doing compared to another good model with "that" method.
+
+In several of these questions, there isn't a correct answer, *per se*. Instead, there is the process that you will undertake and record as you are producing your argument for the model that you think is best meeting your objectives. This is a **very** applied task that we anticipate you will see many times in your work.
+
+```{r setup document,warning=FALSE,message=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+```
+
+We are providing you with an additional challenge, but one that is also very evocative of work that you're likely to come across. This is a well-built repository, that uses a well-documented framework to produce reports, namely `bookdown`. 
+
+Once you have done your work, you can render the entire book using the following call in your console: 
+
+    > bookdown::render_book()
+    
+This will ingest each of the files `01-time_series_...`, `02-cross_validation.Rmd`, `03-ARIMA_model.Rmd` and so on ... and produce a PDF that is stored in `./_book/_main.pdf`. If you would like to read more about this framework, you can do so at the following website: https://bookdown.org/yihui/bookdown/ .    
+
+<!--chapter:end:index.Rmd-->
+
+# (10 points) ARIMA model
+
+Consider `fma::sheep`, the sheep population of England and Wales from 1867--1939. :sheep: 
+
+```{r load sheep data, message=FALSE, warning=FALSE}
+#install.packages('fma')
+library(fma)
+sheep_ts <- as_tsibble(fma::sheep)
+head(sheep_ts)
+```
+
+## Time series plot
+Produce a time plot of the time series, and comment on what you observe.
+
+```{r produce a time series plot of sheep}
+sheep_plot <- autoplot(sheep_ts) + labs(x = "Year", y = TeX(r'(Sheep $\times 10^{-6}$)'))
+sheep_plot
+```
+
+> Sheep population is gradually decreasing over this period and appears to stabilize in the 1930's at around 1700$\times 10^{6}$. There is a significant local dip that coincides with the WWI and subsequent period of economic turmoil in Europe. 
+
+## Fit a model 
+
+Assume you decide to fit the following model: 
+
+$$
+  y_{t} = y_{t-1} + \phi_1(y_{t-1}-y_{t-2}) + \phi_2(y_{t-2}-y_{t-3}) + \phi_3(y_{t-3}-y_{t-4}) + \epsilon_t,
+$$ 
+
+where $\epsilon_t$ is a white noise series.
+
+### Model type
+What sort of ARIMA model is this (i.e., what are $p$, $d$, and $q$)?
+
+> Thi is a representation of ARIMA(3.1.0). There are no error terms from the past lags, therefore MA term q = 0; there is only one differing step, so d = 1, and the last lag taken into account is $y_{t-4}$ which means p = 3 (given d = 1).
+
+### Back to the future 
+
+Express this ARIMA model using backshift operator notation.
+
+> $(1-B)y_{t} = \phi_1(1-B)y_{t-1} + \phi_2(1-B)y_{t-2} + \phi_3(1-B)y_{t-3} + \epsilon_t$
+
+> $(1-B)y_{t} = \phi_1(1-B)By_{t} + \phi_2(1-B)B^2y_{t} + \phi_3(1-B)B^3y_{t} + \epsilon_t$
+
+> $(1-B)y_{t} = (1-B)(\phi_1By_{t} + \phi_2B^2y_{t} + \phi_3B^3y_{t}) + \epsilon_t$
+
+> $(1-B)(1-\phi_1B-\phi_2B^2-\phi_3B^3)y_{t} = \epsilon_t$
+
+## Is this model appropriate? 
+
+Examine the ACF and PACF of the differenced data. Evaluate whether this model is appropriate. 
+
+```{r difference the data}
+# Add a column with differenced data to the original tsibble
+sheep_ts <- sheep_ts %>% mutate(diff = difference(value, lag = 1))
+# Generate acf plot
+acf_plot <- acf(sheep_ts$diff, na.action = na.pass, plot = FALSE) %>%
+  autoplot() + labs(title = "ACF for differenced data")
+# Generate pacf plot
+pacf_plot <- pacf(sheep_ts$diff, na.action = na.pass, plot = FALSE) %>%
+  autoplot() + labs(title = "PACF for differenced data")
+acf_plot | pacf_plot # Display plots
+```
+
+> The model does not capture all the aspects of the underlying data. On one hand, PACF plot shows only 3 signofocant lags, indicating that thsi si indeed AR(3) process. On the other hand, ACF plot shows abrupt decrease of significance after lag 4 and some oscillating pattern, indicating MA(4) process with some periodicity. Therefore ARIMA(3.1.4) would be more appropriate model.
+
+## Forecasts, by hand! 
+The last five values of the series are given below:
+
+| Year              | 1935 | 1936 | 1937 | 1938 | 1939 |
+|:------------------|-----:|-----:|-----:|-----:|-----:|
+| Millions of sheep | 1648 | 1665 | 1627 | 1791 | 1797 |
+
+The estimated parameters are: 
+
+- $\phi_1 =  0.42$; 
+- $\phi_2 = -0.20$;  and, 
+- $\phi_3 = -0.30$.
+
+Without using the forecast function, calculate forecasts for the next three years (1940--1942).
+
+$y_{1940} = y_{1939} + \phi_1(y_{1939}-y_{1938}) + \phi_2(y_{1938}-y_{1937}) + \phi_3(y_{1937}-y_{1936}) + 0$
+
+$y_{1941} = y_{1940} + \phi_1(y_{1940}-y_{1939}) + \phi_2(y_{1939}-y_{1939}) + \phi_3(y_{1938}-y_{1937}) + 0$
+
+$y_{1942} = y_{1941} + \phi_1(y_{1941}-y_{1940}) + \phi_2(y_{1940}-y_{1939}) + \phi_3(y_{1939}-y_{1938}) + 0$
+
+
+```{r create forcasts by hand}
+y1936<-1665
+y1937<-1627 
+y1938<-1791
+y1939<-1797
+phi_1 <-  0.42
+phi_2 <- -0.20
+phi_3 <- -0.30
+
+y1940 <- y1939 + phi_1*(y1939-y1938) + phi_2*(y1938-y1937) + phi_3*(y1937-y1936)
+y1941 <- y1940 + phi_1*(y1940-y1939) + phi_2*(y1939-y1939) + phi_3*(y1938-y1937)
+y1942 <- y1941 + phi_1*(y1941-y1940) + phi_2*(y1940-y1939) + phi_3*(y1939-y1938)
+```
+
+> Forecasted values for 1940, 1941 and 1942 are `r round(y1940, digits = 0)`, `r round(y1941, digits = 0)` and `r round(y1942, digits = 0)`, respectively.
+
+## Interpret roots
+Find the roots of your model's characteristic equation. Is this process stationary?.
+
+```{r find roots of the charachteristic polynomial}
+roots <- polyroot(c(1, -phi_1, -phi_2, -phi_3))
+mroot1 <- Mod(roots[1])
+mroot2 <- Mod(roots[2])
+mroot3 <- Mod(roots[3])
+```
+> Charachteristic polynomial for the ARMA model is $1-\phi_1B-\phi_2B^2-\phi_3B^3 = 0$. For the process to be stationary, all of the roots should lle strictly outside of a unit circle on the complex plane, i.e. modules of all roots should be more than 1. We have modules `r round(mroot1, digits =2)`, `r round(mroot2, digits =2)`, `r round(mroot3, digits =2)`, all above 1. That means that the process is stationary. 
+
+<!--chapter:end:01-ARIMA_model.Rmd-->
+
+# (10 points) Seasonal ARIMA model
+
+```{r data download, results='hide'}
+library(fredr)
+if (fredr_has_key()){
+  ecom_df <- fredr(series_id = "ECOMPCTNSA",
+  observation_start = as.Date("1990-01-01"))
+  ecom_df <- cbind.data.frame(ecom_df[c(1,3)], index = 1:nrow(ecom_df))
+  ecom_ts <- as_tsibble(ecom_df, index = "date")
+} else {
+  print("Expect FREDR API key as an environment variable")
+  quit(save="ask")
+}
+```
+
+```{r train/test split}
+split <- as.Date("2020-12-31")
+train_ts <- ecom_ts %>% filter(date < split)
+test_ts <- ecom_ts %>% filter(date >= split)
+```
+Download the series of E-Commerce Retail Sales as a Percent of Total Sales [here](https://fred.stlouisfed.org/series/ECOMPCTNSA). 
+
+(Feel free to explore the `fredr` package and API if interested.)
+
+Our goal is to Build a Seasonal ARIMA model, following all appropriate steps for a univariate time series model.
+
+Separate the data set into training and test data. The training data is used to estimate model parameters, and it is for 10/1999-12/2020. The test data is used to evaluate its accuracy, and it is for 01/2021-01/22.
+
+## Time series plot
+
+Plot training data set of Retail Sales. What do you notice? Is there any transformation necessary?
+
+```{r time series plot, results='hide', echo = FALSE, warning=FALSE}
+#Plot the original seris
+ts_plot <- autoplot(train_ts) + labs(x = element_blank(), y = 'Fraction of e-comm, %')
+
+# Calculate the trend and de-trended series
+trend <- ma(train_ts$value, order = 4, centre = T)
+seasonal_comp <- train_ts$value/trend 
+
+#Generate dataframe for modeling
+decomp_df <- cbind.data.frame(train_ts, trend, seasonal_comp)
+names(decomp_df) = c("my_date", "value", "index", "trend", "detrended")
+decomp_df <- na.omit(decomp_df)
+# Fit quadratic and logarythmic models
+model.quad <- lm(formula = trend ~ index + I(index^2), data = decomp_df)
+model.log <- lm(formula = log(trend) ~ index, data = decomp_df)
+
+#Make plot for the TS
+trnd_plt<- ggplot(data = decomp_df) + 
+  geom_line(aes(x = my_date, y = trend )) + 
+  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
+
+#Make plot for the model residuals
+res_plt<- ggplot(data = decomp_df) + 
+  geom_line(aes(x = my_date, y = model.quad$residuals, color = "Quadratic")) + 
+  geom_line(aes(x = my_date, y = model.log$residuals, color = "Log" )) + 
+  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank(), y = "Model residuals") +
+  scale_color_manual(name = "Trend Models", values = c("Quadratic" = "black", 
+                                           "Log" = "blue")) +
+  # Legend text and position
+  theme(legend.position=c(.3,.75))
+# Make plot for the de-trended series
+seasonal_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + geom_line() + 
+  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
+
+#Display plots
+ts_plot/(trnd_plt|res_plt|seasonal_plt)
+```
+Fraction of e-commerce in the overall retail sales is growing, and its growth is accelerating. It appears that at around the start of the COVID-19 pandemic the acceleration increased. This is evident from abrupt change in the overall trend curvature at the beginning of 2020. The series also has marked seasonal component, and the magnitude of the seasonal component is increasing, suggesting a multiplicative seasoning. The trend has obvious curvature, but neither quadratic, nor logarithmic transformation result in white-noise residuals.
+
+## Check for Stationary 
+
+Use ACF/PACF and a unit root test to check if Retail Sales is stationary. If data is not stationary, difference the data, and apply the
+test again until it becomes stationary? How many differences are needed to make data stationary?
+
+```{r difference the series, warning=FALSE}
+my_lag <- 4
+train_ts <- mutate(train_ts, 
+                   deseasoned = difference(value, lag = my_lag),
+                   detrended = difference(deseasoned, lag = 1))
+train_ts <- na.omit(train_ts)
+
+deseasoned_plot <- ggplot(data = train_ts) + aes(x = date, y = deseasoned) + 
+                  geom_line()
+detrended_plot <- ggplot(data = train_ts) + aes(x = date, y = detrended) +
+                  geom_line()
+deseasoned_plot | detrended_plot 
+```
+
+```{r Check for Stationary}
+value_p <- PP.test(train_ts$value)
+deseasoned_p <- PP.test(train_ts$deseasoned)
+detrended_p <- PP.test(train_ts$detrended)
+```
+Given strong trend and seasonality in the data it is obvious that the original series is not stationary. Deseasonng via differencing with lag 4 (1 year), does not eliminate the trend. Further de-trending with lag = 1 eliminates the trend, but the resulting trend is clearly heteroschedastic. Results of Phillips-Perron test reflect these observations. The test fails to reject the hypothesis of non-stationarity for the original series (p-value = `r round (value_p$p.value, digits = 3)`) and de-seasoned series (p-value = `r round(deseasoned_p$p.value, digits = 3)`), but strongly rejects this hypothesis for the de-trended series with p-value = `r round(detrended_p$p.value, digits = 3)`)
+
+## Model identification and estimation
+
+Use ACF/PACF to identify an appropriate SARIMA model. Estimate both select model and model chosen by ARIMA()
+
+```{r Model identification}
+acf_plot <- acf(train_ts$detrended, plot = F) %>% autoplot() + xlim(1,25)
+pacf_plot <- pacf(train_ts$detrended, plot = F) %>% autoplot() + xlim(1,25)
+acf_plot | pacf_plot
+```
+```{r Manual Model estimation}
+model.manual<- arima(train_ts$value, order = c(1, 1, 1),
+  seasonal = list(order = c(0, 1, 0), period = 4))
+model.manual
+```
+```{r auto model estimation}
+model.auto <- train_ts$value %>% ts(frequency = 4) %>% auto.arima(d = 1, D = 1,
+              max.p = 5, max.q = 5, max.P = 2, max.Q = 2, max.d = 2, max.D = 2,
+              max.order = 10,
+              start.p = 0, start.q = 0, start.P = 0, start.Q = 0,
+  ic="aic", seasonal = TRUE, stepwise = FALSE, approximation = FALSE, trace = FALSE)
+model.auto
+
+train_short <- train_ts %>% filter(date < as.Date("2020-01-01"))
+model.short <- train_short$value %>% ts(frequency = 4) %>% auto.arima(d = 1, D = 1,
+              max.p = 5, max.q = 5, max.P = 2, max.Q = 2, max.d = 2, max.D = 2,
+              max.order = 10,
+              start.p = 0, start.q = 0, start.P = 0, start.Q = 0,
+  ic="aic", seasonal = TRUE, stepwise = FALSE, approximation = FALSE, trace = FALSE)
+model.short
+```
+
+ACF plot for de-seasoned and de-trended series contains one strongly significant lag = 1, same as PACF plot. Formally, this is typical for ARMA(1.1) process, however, there is also a chance that this is an artifact caused by the few lags at the end of the series that are affected by the pandemic abnormality. Having abnormally large values at the tail of the series might make short lags a lot more significant. This considerations aside, ACF and PACF plot suggest SARIMA(1.1.1)(0.1.0)[4] model. Estimating this model results in AIC = `r round(model.manual$aic, digits = 1)`.
+Grid search with `auto.arima` function yields very similar result. The function find s the lowest AIC `r round(model.auto$aic, digits = 1)` for SARIMA(1.1.0)(0.1.0)[4]. The fact that MA component of ARIMA does not improve the model, despite the fact that PACF plot goes down abruptly after lag 1, supports the hypothesis that observed plots are just artifacts.
+Repeating this grid search on the shortned training set that excludes the pandemic data results in a much lower AIC of `r round(model.short$aic, digits = 1)`.
+
+## Model diagnostic 
+
+Do residual diagnostic checking of both models. Are the residuals white noise? Use the Ljung-box test to check if the residuals are white noise.  
+
+```{r diagnostic for manual model, echo=FALSE}
+checkresiduals(model.manual, test=FALSE, plot = TRUE)
+BLT.manual <- Box.test(as.ts(model.manual$residuals), lag = 1, type = "Ljung-Box")
+```
+
+```{r diagnostic for auto model, echo=FALSE}
+checkresiduals(model.auto, test=FALSE, plot = TRUE)
+BLT.auto <- Box.test(as.ts(model.auto$residuals), lag = 1, type = "Ljung-Box")
+```
+
+```{r diagnostic for short-set model, echo=FALSE}
+checkresiduals(model.short, test=FALSE, plot = TRUE)
+BLT.short <- Box.test(as.ts(model.short$residuals), lag = 1, type = "Ljung-Box")
+```
+
+Both manually estimated model as well as `auto.arima` result fail visual tests for model quality: in both cases residual distribution has a significant outlier and residual plots contain strong spikes. However, Ljung-Box Test fails to reject the null hypothesis with p-values `r round(BLT.manual$p.value, digits =2)` and `r round(BLT.auto$p.value, digits = 2)` respectively.
+The model estimated on the shorter data does have all the charachteristics of good fit: normally distributed residuals with no pattern in acf plot and p-value `r round(BLT.short$p.value, digits =2)` on Ljung-Box Test, indicating no autocorrelation in residuals.
+
+
+
+## Forcasting 
+
+Use the both models to forecast the next 12 months and evaluate the forecast accuracy of these models.
+
+```{r forcasting}
+frcst_length = length(test_ts$value)
+frcst_manual <- forecast(model.manual, h=frcst_length)
+frcst_auto <- forecast(model.auto, h=frcst_length)
+frcst_short <- forecast(model.short, h=frcst_length+4)
+```
+
+```{r forcast plotting, echo = FALSE}
+df_2frcst <- cbind.data.frame(test_ts, frcst_manual$mean, frcst_auto$mean, frcst_short$mean[5:13])
+names(df_2frcst) <- c("my_date", "value", "index", "manual", "auto", "short")
+
+ggplot(data = df_2frcst) + 
+  geom_line(aes(x = my_date, y = value, color = "Observed data")) +
+  geom_line(aes(x = my_date, y = manual, color = "Manual"), linewidth = 0.25) + 
+  geom_line(aes(x = my_date, y = auto,  color = "Auto selected"), linewidth = 0.25) +
+  geom_line(aes(x = my_date, y = short,  color = "Short"), linewidth = 0.25) +
+  labs(x = element_blank(), y = 'Fraction of e-comm, %') + 
+  ylim(0, 26) +
+  # Legend colors
+  scale_color_manual(name = "", values = c("Observed data" = "black", 
+                                         "Manual" = "darkgreen",
+                                         "Auto selected" = "blue",
+                                         "Short" = "red" )) +
+  # Legend text and position
+  theme(legend.position=c(.25,.9),
+        legend.text=element_text(size=12))
+```
+
+Both manually selected and auto-selected models make essentially the same predictions, both significantly overestimate the growth rate for the e-commerce sales. This is because the models were trained on the data that contained a large shock and they implicitly expect more of the similar shocks to come. The model that was trained on truncated data, on the other hand, captures the underlying market forces without compounding effect of once-in-a-lifetime anomaly. As a result, once the anomaly passes, this model predicts the actual observed data much better than the previous two.
+
+<!--chapter:end:02-seasonal_ARIMA.Rmd-->
+
+# (10 points) Time Series Linear Model and Cointegration
+
+Daily electricity demand and temperature (in degrees Celsius) is recorded in `./data/temperature_demand.csv`. Please work through the following questions to build a time series linear model against this data.
+
+```{r load packages for time series linear model, warning=FALSE, message=FALSE, echo = FALSE}
+library(aTSA)
+```
+
+```{r load temperature data, message=FALSE} 
+temperature <- read_csv('./data/temperature_demand.csv') %>% 
+  rename(
+     'index'       = '...1',
+     'demand'      = 'Demand', 
+     'work_day'    = 'WorkDay',
+     'temperature' = 'Temperature'
+  )
+temp_ts <- temperature %>% filter(work_day == 1) %>%as_tsibble(index = index)
+names(temp_ts) <- c("my_day", "demand", "work_day", "temps")
+#glimpse(temperature)
+```
+
+## Plot electricity
+
+Plot electricity demand and temperature as time series. Is there any correlation between these to variables? If yes, Do you think is it a spurious correlation?
+
+```{r plot electricity and temperature}
+
+temp_plot <- ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = temps), color = "black") + 
+  labs(x = "", y = "Temps")
+
+demand_plot <-  ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = demand), color = "blue") + 
+  labs(x = "Day", y = "Demand")
+
+corr_plot <- ggplot(data = temp_ts) + 
+  geom_point(aes(x = temps, y = demand)) + 
+  labs(x = "Deviation from 23oC", y = "Demand")
+
+(temp_plot/demand_plot)|corr_plot
+```
+First of all, I decided to filter out the non-working days. Electricity demand is dramatically different between working and non-working days, so mixing the two together in the same model is equvalent to naive pooling of panel data - a sure way to cloudy conclusions. 
+This transformation revealed reasonable correlation between the two series. This is likely a real correlation: energy is required to heat and cool houses, so the further away temperature from the comfortable 20-25$^{o}$C, the higher energy demand. From that perspective, re-framing temperature time series as an absolute value of deviation from 23$^{o}$C shows even higher correlation.  It appears that cooling is a lot more energy expensive, so it would be even more evident if the deviation was weighted by the average amount of energy needed to cool or heat by 1 degree.
+
+```{r plot electricity and temperature - alternative}
+temp_ts <- temp_ts %>% mutate(dev = abs(temp_ts$temps-23))
+
+temp_dev_plot <- ggplot(data = temp_ts) + 
+  geom_line(aes(x = my_day, y = dev), color = "black") + 
+  labs(x = "", y = "Temps")
+
+corr_plot <- ggplot(data = temp_ts) + 
+  geom_point(aes(x = dev, y = demand)) + 
+  labs(x = TeX("Deviation from 23$^{o}$C"), y = "Demand")
+
+(temp_dev_plot/demand_plot)|corr_plot
+```
+
+## Cointegration test
+
+Use the Engle-Granger test to check for cointegration. What do you conclude? 
+
+```{r Cointegration test}
+no_diff_test <- coint.test(temp_ts$demand, temp_ts$dev, d = 0, output = FALSE)
+diff_test <- coint.test(temp_ts$demand, temp_ts$dev, d = 1, output = FALSE)
+``` 
+In case of non-differenced series, Engle-Granger test rejects null-hypothesis of no co-integration with p-value < `r no_diff_test[1,3]`. The same holds even after differencing of both series with lag 1 (p-value < `r diff_test`). The series are likely related to each other. 
+## Fit Model
+
+Based on cointegration test,fit a regression model for demand with temperature as an explanatory variable(or their first difference).
+
+```{r Fit model}
+#'fill this in'
+
+``` 
+
+
+## Residuals Plot
+
+Produce a residual plot of the estimated model in pervious part. Is the model adequate? Describe any outliers or influential observations, and discuss how the model could be improved.
+
+```{r plot residuals}
+#Fill this in
+
+```
+
+> 'Fill this in: 
+
+## Forcasting model
+
+Use a model to forecast the electricity demand (with **prediction** intervals) that you would expect for the next day if the maximum temperature was $15^\circ$. Compare this with the forecast if the with maximum temperature was $35^\circ$. Do you believe these forecasts? Why or why not? 
+ 
+```{r produce a forecast with the model}
+#Fill this in
+
+```
+
+> 'Fill this in:' 
+
+
+
+<!--chapter:end:03-time_series_linear_model.Rmd-->
+
+# (12 points) Vector autoregression
+
+```{r load VAR packages, message=FALSE,message=FALSE}
+library(tidyverse)
+```
+
+Annual values for real mortgage credit (RMC), real consumer credit (RCC) and real disposable personal income (RDPI) for the period 1946-2006 are recorded in `./data/mortgage_credit.csv`. 
+
+All of the observations are measured in billions of dollars, after adjustment by the Consumer Price Index (CPI). 
+
+Our goal is to develop a VAR model for these data for the period 1946-2003, and then forecast the last three years, 2004-2006. 
+
+
+```{r read credit data, message=FALSE}
+credit <- read_csv('./data/mortgage_credit.csv')
+#glimpse(credit)
+```
+
+## Time series plot
+
+Plot the time-series of real mortgage credit (RMC), real consumer credit (RCC) and real disposable personal income (RDPI)? Do they look stationary?
+
+```{r Time series plot}
+#Fill this in
+
+```
+
+> 'Fill this in
+
+
+## Check for the unit root
+
+Plot ACF/PACF and Perform the unit root test on these variables and report the results. Do you reject the null of unit root for them? Is the first differencing necessary? 
+
+```{r ACF/PACF and  unit root test}
+#Fill this in
+
+```
+
+> 'Fill this in
+
+
+## Determine VAR model
+
+Based on the unit root results transform the variables and determine the lag length of the VAR using the information criteria.
+
+```{r Determine VAR model}
+#Fill this in
+
+```
+
+> 'Fill this in
+
+
+## Estimation 
+
+Estimate the selected VAR in previous part and comment on the results.
+
+```{r Estimate VAR}
+#Fill this in
+
+```
+
+> 'Fill this in
+
+
+## Model diagnostic
+
+Do diagnostic checking of the VAR model.
+
+```{r Model diagnostic}
+#Fill this in
+
+```
+
+> 'Fill this in
+
+
+## Forecasting
+
+forecast the last three years, 2004-2006.
+
+
+```{r Forecasting}
+#Fill this in
+
+```
+
+> 'Fill this in
+
+<!--chapter:end:04-vector_autogression.Rmd-->
+

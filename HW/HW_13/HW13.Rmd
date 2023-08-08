@@ -63,37 +63,45 @@ sales_big <- isales_CAD %>% filter(cus_name %in% big_customers$cus_name)
 ## Total I-125 sales plot
 
 ```{r time series plot, results='hide', echo = FALSE, warning=FALSE}
-monthly_sales <- isales_CAD %>% group_by(date) %>% summarize(sales = sum(total_CAD))
-monthly_sales <- monthly_sales %>% as_tsibble(index = date)
-#Plot the original series
-
-
-ts_plot <- monthly_sales %>% 
-  ggplot() + aes(x = date, y = sales/1000) + geom_line() + 
-  labs(x = element_blank(), y = "I-125 sales, kCAD/month")+ ylim(0,900)
+monthly_sales <- isales_CAD %>%
+  group_by(date) %>% 
+  summarize(sales = sum(total_CAD)) %>% 
+  as_tsibble(index = date)
 
 # Calculate the trend and de-trended series
-trend <- ma(monthly_sales$sales, order = 3, centre = T)
+monthly_sales <- monthly_sales %>%
+  mutate(trend = ma(monthly_sales$sales, order = 3, centre = T))
 
 monthly_sales <- mutate(monthly_sales, 
-                   detrended = difference(sales, lag = 1))
+                   detrended = (sales - trend),
+                   differenced = difference(sales)) %>% na.omit()
 
-#Generate dataframe for modeling
-decomp_df <- cbind.data.frame(monthly_sales, trend)
-names(decomp_df) = c("my_date", "value", "detrended", "trend")
-decomp_df <- na.omit(decomp_df)
-
-#Make plot for the TS
-trnd_plt<- ggplot(data = decomp_df) + 
-  geom_line(aes(x = my_date, y = trend/1000 )) + 
-  labs(x = element_blank())+ ylim(0,900)
+#Plot the original series
+ts_plot <- monthly_sales %>% 
+  ggplot() + 
+  geom_line(aes(x = date, y = sales/1000, color = "Month total"), size = 0.5) + 
+  geom_line(aes(x = date, y = trend/1000, color = "Qauterly average"), size = 1) +
+  labs(x = element_blank(), y = "Sales, kCAD/mo")+ ylim(0,900) +
+  scale_color_manual(name = "", values = c("Qauterly average" = "black", 
+                                           "Month total" = "darkgray" )) +
+  # Legend text and position
+  theme(legend.position=c(.2,.85),
+        legend.text=element_text(size=14))+
+  # Panel and axis appearance
+  theme(axis.line = element_line(colour = "black"),
+    panel.grid.major = element_line(color = "lightgray", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()) 
 
 # Make plot for the de-trended series
-detrended_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + geom_line() + 
-  labs(x = element_blank())
+detrended_plt <- ggplot(data = monthly_sales) + aes(x = date, y = (100*detrended/sales) ) + geom_line() + 
+  labs(x = element_blank(), y = "Error, %")
+
+ggsave(filename = 'I125_sales.jpg', plot = ts_plot, device = "jpg", units = c("in"), height= 6, width=6)
 
 #Display plots
-ts_plot/(trnd_plt|detrended_plt)
+ts_plot/detrended_plt
 ```
 ## Check for Stationary 
 
@@ -117,12 +125,12 @@ test_ts <- monthly_sales %>% filter(date >= as.Date("2021-01-01"))
 Use ACF/PACF to identify an appropriate SARIMA model. Estimate both select model and model chosen by ARIMA()
 
 ```{r Model identification}
-decomp_filtered <- filter(decomp_df, my_date  < as.Date("2021-01-01") )
+filtered <- filter(monthly_sales, date  < as.Date("2021-01-01") )
 
-acf_plot <-  decomp_filtered$detrended %>%
+acf_plot <-  filtered$differenced %>%
   acf(plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
 
-pacf_plot <- decomp_filtered$detrended %>%
+pacf_plot <- filtered$differenced %>%
   pacf(plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
 acf_plot | pacf_plot
 ```
@@ -141,7 +149,7 @@ model.auto <- train_ts$sales %>% ts(frequency = 12) %>% auto.arima(d = 1, D = 0,
               max.p = 5, max.q = 5, max.P = 2, max.Q = 2, max.d = 2, max.D = 2,
               max.order = 10,
               start.p = 1, start.q = 1, start.P = 1, start.Q = 1,
-  ic="bic", seasonal = TRUE, stepwise = FALSE, approximation = FALSE, trace = TRUE)
+  ic="bic", seasonal = TRUE, stepwise = FALSE, approximation = FALSE, trace = FALSE)
 model.auto
 ```
 
@@ -194,17 +202,18 @@ frcst_auto <- forecast(model.auto, h=frcst_length)
 frcst_short <- forecast(model.short, h=frcst_length)
 ```
 
-```{r forcast plotting, echo = FALSE}
-df_2frcst <- cbind.data.frame(test_ts, frcst_manual$mean, frcst_auto$mean, frcst_short$mean)
-names(df_2frcst) <- c("my_date", "value", "detrended", "manual", "auto", "short")
+```{r forcast plotting, echo = FALSE, warning=FALSE}
+df_2frcst <- cbind.data.frame(test_ts[,1:2], frcst_manual$mean, frcst_auto$mean, frcst_short$mean)
+names(df_2frcst) <- c("my_date", "value", "manual", "auto", "short")
 
-ggplot(data = df_2frcst) + 
-  geom_line(aes(x = my_date, y = value, color = "Observed data")) +
-  geom_line(aes(x = my_date, y = manual, color = "Manual"), linewidth = 0.25) + 
-  geom_line(aes(x = my_date, y = auto,  color = "Auto selected"), linewidth = 0.25) +
-  geom_line(aes(x = my_date, y = short,  color = "Short"), linewidth = 0.25) +
-  labs(x = element_blank(), y = 'Sales, CAD') + 
-  ylim(0,700000)+
+frcts_plots <- ggplot(data = df_2frcst) + 
+  geom_line(aes(x = my_date, y = value/1000, color = "Observed data")) +
+  geom_line(aes(x = my_date, y = manual/1000, color = "Manual"), linewidth = 0.25) + 
+  geom_line(aes(x = my_date, y = auto/1000,  color = "Auto selected"), linewidth = 0.25) +
+  geom_line(aes(x = my_date, y = short/1000,  color = "Short"), linewidth = 0.25) +
+  geom_line(aes(x = date, y = sales/1000,  color = "black"), data = monthly_sales, linewidth = 0.25) +
+  labs(x = element_blank(), y = 'Sales, kCAD') + 
+  ylim(0,900)+ xlim(as.Date("2020-01-01"), as.Date("2023-01-01")) + 
   # Legend colors
   scale_color_manual(name = "", values = c("Observed data" = "black", 
                                          "Manual" = "darkgreen",
@@ -213,6 +222,10 @@ ggplot(data = df_2frcst) +
   # Legend text and position
   theme(legend.position=c(.25,.9),
         legend.text=element_text(size=12))
+
+ggsave(filename = 'I125_sales_predictions.jpg', plot = frcts_plots, device = "jpg", units = c("in"), height= 6, width=6)
+
+frcts_plots
 ```
 
 Both manually selected and auto-selected models make essentially the same predictions, both significantly overestimate the growth rate for the e-commerce sales. This is because the models were trained on the data that contained a large shock and they implicitly expect more of the similar shocks to come. The model that was trained on truncated data, on the other hand, captures the underlying market forces without compounding effect of once-in-a-lifetime anomaly. As a result, once the anomaly passes, this model predicts the actual observed data much better than the previous two.
