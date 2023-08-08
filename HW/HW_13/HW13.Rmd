@@ -9,6 +9,7 @@ library(lubridate)
 library(feasts)
 library(forecast)
 library(sandwich)
+library(fma)
 
 if (!"fable" %in% rownames(installed.packages())) { install.packages("fable") }
 library(fable)
@@ -20,121 +21,122 @@ theme_set(theme_minimal())
 
 ```{r read csv into a dataframe}
 isales <- read.csv('./data/iodine_sales.csv')
-isales$inv_date <- as.Date(isales$inv_date)
+isales$date <- as.Date(isales$inv_date)
 isales$total <- as.numeric(isales$total)
 
-#get a list of customers, who bought more than 1M worth of product in 10 years
-big_customers <- isales %>% group_by(cus_name)%>% summarise(rev = sum(total)) %>% filter(rev > 500000)
-
-# Get sales for big customers only
-sales <- isales %>% filter(cus_name %in% big_customers$cus_name)
 ```
 
 
+```{r get currency exchange rate}
+library(yahoofinancer)
+US_to_CA_rate <- currency_converter(
+  from = "USD",
+  to = "CAD",
+  start = "2012-01-01",
+  end = Sys.Date(),
+  interval = "5d"
+)
+
+US_to_CA_rate <- US_to_CA_rate %>% 
+    group_by(date = lubridate::floor_date(date, 'month')) %>%
+    summarize(exchange_rate = mean(close))
+
+US_to_CA_rate$date <- as.Date(US_to_CA_rate$date)
+```
+
+
+```{r convert all sales to CAD}
+# 
+isales_CAD <- isales %>%
+  left_join(US_to_CA_rate, by = join_by(date)) %>% 
+  mutate (total_CAD = total * exchange_rate) %>% 
+  select(-inv_date, -currency, -total, -exchange_rate) 
+```
+
+```{r select big customers}
+#get a list of customers, who bought more than 1M worth of product in 10 years
+big_customers <- isales_CAD %>% group_by(cus_name)%>% summarise(rev = sum(total_CAD)) %>% filter(rev > 500000)
+
+# Get sales for big customers only
+sales_big <- isales_CAD %>% filter(cus_name %in% big_customers$cus_name)
+```
 ## Total I-125 sales plot
 
 ```{r time series plot, results='hide', echo = FALSE, warning=FALSE}
-monthly_sales <- isales %>% group_by(inv_date) %>% summarize(sales = sum(total))
-monthly_sales <- monthly_sales %>% as_tsibble(index = inv_date)
-#Plot the original seris
+monthly_sales <- isales_CAD %>% group_by(date) %>% summarize(sales = sum(total_CAD))
+monthly_sales <- monthly_sales %>% as_tsibble(index = date)
+#Plot the original series
 
 
-monthly_sales %>% 
-  ggplot() + aes(x = inv_date, y = sales) + geom_line() 
+ts_plot <- monthly_sales %>% 
+  ggplot() + aes(x = date, y = sales/1000) + geom_line() + 
+  labs(x = element_blank(), y = "I-125 sales, kCAD/month")+ ylim(0,900)
 
 # Calculate the trend and de-trended series
-trend <- ma(train_ts$value, order = 4, centre = T)
-seasonal_comp <- train_ts$value/trend 
+trend <- ma(monthly_sales$sales, order = 3, centre = T)
+
+monthly_sales <- mutate(monthly_sales, 
+                   detrended = difference(sales, lag = 1))
 
 #Generate dataframe for modeling
-decomp_df <- cbind.data.frame(train_ts, trend, seasonal_comp)
-names(decomp_df) = c("my_date", "value", "index", "trend", "detrended")
+decomp_df <- cbind.data.frame(monthly_sales, trend)
+names(decomp_df) = c("my_date", "value", "detrended", "trend")
 decomp_df <- na.omit(decomp_df)
-# Fit quadratic and logarythmic models
-model.quad <- lm(formula = trend ~ index + I(index^2), data = decomp_df)
-model.log <- lm(formula = log(trend) ~ index, data = decomp_df)
 
 #Make plot for the TS
 trnd_plt<- ggplot(data = decomp_df) + 
-  geom_line(aes(x = my_date, y = trend )) + 
-  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
+  geom_line(aes(x = my_date, y = trend/1000 )) + 
+  labs(x = element_blank())+ ylim(0,900)
 
-#Make plot for the model residuals
-res_plt<- ggplot(data = decomp_df) + 
-  geom_line(aes(x = my_date, y = model.quad$residuals, color = "Quadratic")) + 
-  geom_line(aes(x = my_date, y = model.log$residuals, color = "Log" )) + 
-  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank(), y = "Model residuals") +
-  scale_color_manual(name = "Trend Models", values = c("Quadratic" = "black", 
-                                           "Log" = "blue")) +
-  # Legend text and position
-  theme(legend.position=c(.3,.75))
 # Make plot for the de-trended series
 seasonal_plt <- ggplot(data = decomp_df) + aes(x = my_date, y = detrended ) + geom_line() + 
-  scale_y_continuous(expand = c(0,0)) + labs(x = element_blank())
+  labs(x = element_blank())
 
 #Display plots
-ts_plot/(trnd_plt|res_plt|seasonal_plt)
+ts_plot/(trnd_plt|seasonal_plt)
 ```
-
-```{r}
-ts_plot
-```
-
 ## Check for Stationary 
 
 Use ACF/PACF and a unit root test to check if Retail Sales is stationary. If data is not stationary, difference the data, and apply the
 test again until it becomes stationary? How many differences are needed to make data stationary?
 
-```{r difference the series, warning=FALSE}
-my_lag <- 4
-train_ts <- mutate(train_ts, 
-                   deseasoned = difference(value, lag = my_lag),
-                   detrended = difference(deseasoned, lag = 1))
-train_ts <- na.omit(train_ts)
-
-deseasoned_plot <- ggplot(data = train_ts) + aes(x = date, y = deseasoned) + 
-                  geom_line()
-detrended_plot <- ggplot(data = train_ts) + aes(x = date, y = detrended) +
-                  geom_line()
-deseasoned_plot | detrended_plot 
-```
-
 ```{r Check for Stationary}
-value_p <- PP.test(train_ts$value)
-deseasoned_p <- PP.test(train_ts$deseasoned)
-detrended_p <- PP.test(train_ts$detrended)
+value_p <- PP.test(decomp_df$value)
+detrended_p <- PP.test(decomp_df$detrended)
 ```
-Given strong trend and seasonality in the data it is obvious that the original series is not stationary. Deseasonng via differencing with lag 4 (1 year), does not eliminate the trend. Further de-trending with lag = 1 eliminates the trend, but the resulting trend is clearly heteroschedastic. Results of Phillips-Perron test reflect these observations. The test fails to reject the hypothesis of non-stationarity for the original series (p-value = `r round (value_p$p.value, digits = 3)`) and de-seasoned series (p-value = `r round(deseasoned_p$p.value, digits = 3)`), but strongly rejects this hypothesis for the de-trended series with p-value = `r round(detrended_p$p.value, digits = 3)`)
+Given strong trend in the data it is obvious that the original series is not stationary. De-trending with lag = 1 eliminates the trend. Results of Phillips-Perron test reflect these observations. The test fails to reject the hypothesis of non-stationarity for the original series (p-value = `r round (value_p$p.value, digits = 3)`) and de-seasoned series (p-value = `r round(deseasoned_p$p.value, digits = 3)`), but strongly rejects this hypothesis for the de-trended series with p-value = `r round(detrended_p$p.value, digits = 3)`)
 
 ## Model identification and estimation
 
 Use ACF/PACF to identify an appropriate SARIMA model. Estimate both select model and model chosen by ARIMA()
 
 ```{r Model identification}
-acf_plot <- acf(train_ts$detrended, plot = F) %>% autoplot() + xlim(1,25)
-pacf_plot <- pacf(train_ts$detrended, plot = F) %>% autoplot() + xlim(1,25)
+acf_plot <- acf(decomp_df$detrended, plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
+pacf_plot <- pacf(decomp_df$detrended, plot = F,lag.max = 50) %>% autoplot() + xlim(1,50)
 acf_plot | pacf_plot
 ```
 ```{r Manual Model estimation}
-model.manual<- arima(train_ts$value, order = c(1, 1, 1),
-  seasonal = list(order = c(0, 1, 0), period = 4))
-model.manual
+model.manual<- arima(monthly_sales$sales, order = c(1, 1, 4))
+checkresiduals(model.manual)
 ```
-```{r auto model estimation}
-model.auto <- train_ts$value %>% ts(frequency = 4) %>% auto.arima(d = 1, D = 1,
-              max.p = 5, max.q = 5, max.P = 2, max.Q = 2, max.d = 2, max.D = 2,
-              max.order = 10,
-              start.p = 0, start.q = 0, start.P = 0, start.Q = 0,
-  ic="aic", seasonal = TRUE, stepwise = FALSE, approximation = FALSE, trace = FALSE)
-model.auto
 
-train_short <- train_ts %>% filter(date < as.Date("2020-01-01"))
-model.short <- train_short$value %>% ts(frequency = 4) %>% auto.arima(d = 1, D = 1,
+
+```{r auto model estimation}
+model.auto <- monthly_sales$sales %>% ts(frequency = 12) %>% auto.arima(d = 1, D = 0,
               max.p = 5, max.q = 5, max.P = 2, max.Q = 2, max.d = 2, max.D = 2,
               max.order = 10,
-              start.p = 0, start.q = 0, start.P = 0, start.Q = 0,
-  ic="aic", seasonal = TRUE, stepwise = FALSE, approximation = FALSE, trace = FALSE)
-model.short
+              start.p = 1, start.q = 1, start.P = 1, start.Q = 1,
+  ic="bic", seasonal = TRUE, stepwise = FALSE, approximation = FALSE, trace = TRUE)
+model.auto
+```
+
+```{r auto model estimation}
+model.noseason <- monthly_sales$sales %>% auto.arima(d = 1,
+              max.p = 5, max.q = 5, max.d = 2,
+              max.order = 10,
+              start.p = 1, start.q = 1,
+  ic="bic", seasonal = FALSE, stepwise = FALSE, approximation = FALSE, trace = FALSE)
+model.noseason
 ```
 
 ACF plot for de-seasoned and de-trended series contains one strongly significant lag = 1, same as PACF plot. Formally, this is typical for ARMA(1.1) process, however, there is also a chance that this is an artifact caused by the few lags at the end of the series that are affected by the pandemic abnormality. Having abnormally large values at the tail of the series might make short lags a lot more significant. This considerations aside, ACF and PACF plot suggest SARIMA(1.1.1)(0.1.0)[4] model. Estimating this model results in AIC = `r round(model.manual$aic, digits = 1)`.
