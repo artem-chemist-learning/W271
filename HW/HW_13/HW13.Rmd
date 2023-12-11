@@ -87,6 +87,12 @@ ts_plot <- monthly_sales %>%
   # Legend text and position
   theme(legend.position=c(.2,.85),
         legend.text=element_text(size=14))+
+  
+  theme(axis.text.x=element_text(size=20), 
+        axis.text.y=element_text(size=20),
+        axis.title.x=element_text(size=20),
+        axis.title.y=element_text(size=20)) +
+  
   # Panel and axis appearance
   theme(axis.line = element_line(colour = "black"),
     panel.grid.major = element_line(color = "lightgray", linewidth = 0.1),
@@ -95,13 +101,13 @@ ts_plot <- monthly_sales %>%
     panel.background = element_blank()) 
 
 # Make plot for the de-trended series
-detrended_plt <- ggplot(data = monthly_sales) + aes(x = date, y = (100*detrended/sales) ) + geom_line() + 
-  labs(x = element_blank(), y = "Error, %")
+detrended_plt <- ggplot(data = monthly_sales) + aes(x = date, y = (100*differenced/sales) ) + geom_line() + 
+  labs(x = element_blank(), y = "Differenced")
 
-ggsave(filename = 'I125_sales.jpg', plot = ts_plot, device = "jpg", units = c("in"), height= 6, width=6)
+ggsave(filename = 'I125_sales.jpg', plot = ts_plot, device = "jpg", units = c("in"), height= 6, width=12)
 
 #Display plots
-ts_plot/detrended_plt
+detrended_plt
 ```
 ## Check for Stationary 
 
@@ -109,8 +115,8 @@ Use ACF/PACF and a unit root test to check if Retail Sales is stationary. If dat
 test again until it becomes stationary? How many differences are needed to make data stationary?
 
 ```{r Check for Stationary}
-value_p <- PP.test(decomp_df$value)
-detrended_p <- PP.test(decomp_df$detrended)
+value_p <- PP.test(monthly_sales$sales)
+detrended_p <- PP.test(monthly_sales$differenced)
 ```
 Given strong trend in the data it is obvious that the original series is not stationary. De-trending with lag = 1 eliminates the trend. Results of Phillips-Perron test reflect these observations. The test fails to reject the hypothesis of non-stationarity for the original series (p-value = `r round (value_p$p.value, digits = 3)`) and de-seasoned series (p-value = `r round(deseasoned_p$p.value, digits = 3)`), but strongly rejects this hypothesis for the de-trended series with p-value = `r round(detrended_p$p.value, digits = 3)`)
 
@@ -208,10 +214,10 @@ names(df_2frcst) <- c("my_date", "value", "manual", "auto", "short")
 
 frcts_plots <- ggplot(data = df_2frcst) + 
   geom_line(aes(x = my_date, y = value/1000, color = "Observed data")) +
-  geom_line(aes(x = my_date, y = manual/1000, color = "Manual"), linewidth = 0.25) + 
-  geom_line(aes(x = my_date, y = auto/1000,  color = "Auto selected"), linewidth = 0.25) +
-  geom_line(aes(x = my_date, y = short/1000,  color = "Short"), linewidth = 0.25) +
-  geom_line(aes(x = date, y = sales/1000,  color = "black"), data = monthly_sales, linewidth = 0.25) +
+  geom_line(aes(x = my_date, y = manual/1000, color = "Manual"), linewidth = 0.75) + 
+  geom_line(aes(x = my_date, y = auto/1000,  color = "Auto selected"), linewidth = 0.75) +
+  geom_line(aes(x = my_date, y = short/1000,  color = "Short"), linewidth = 0.75) +
+  geom_line(aes(x = date, y = sales/1000,  color = "black"), data = monthly_sales, linewidth = 0.75) +
   labs(x = element_blank(), y = 'Sales, kCAD') + 
   ylim(0,900)+ xlim(as.Date("2020-01-01"), as.Date("2023-01-01")) + 
   # Legend colors
@@ -221,9 +227,14 @@ frcts_plots <- ggplot(data = df_2frcst) +
                                          "Short" = "red" )) +
   # Legend text and position
   theme(legend.position=c(.25,.9),
-        legend.text=element_text(size=12))
+        legend.text=element_text(size=12)) +
+  
+    theme(axis.text.x=element_text(size=20), 
+        axis.text.y=element_text(size=20),
+        axis.title.x=element_text(size=20),
+        axis.title.y=element_text(size=20))
 
-ggsave(filename = 'I125_sales_predictions.jpg', plot = frcts_plots, device = "jpg", units = c("in"), height= 6, width=6)
+ggsave(filename = 'I125_sales_predictions.jpg', plot = frcts_plots, device = "jpg", units = c("in"), height= 6, width=12)
 
 frcts_plots
 ```
